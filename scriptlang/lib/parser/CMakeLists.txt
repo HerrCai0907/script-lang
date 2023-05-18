@@ -20,14 +20,22 @@ add_custom_command(
   OUTPUT ${antlr4_gen_srcs}
   COMMAND antlr4 -Dlanguage=Cpp ${CMAKE_CURRENT_SOURCE_DIR}/scriptlang.g4 -o ${CMAKE_CURRENT_BINARY_DIR}/antlr4_generated
   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scriptlang.g4
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMENT "Building ${Name} with ANTLR4"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  COMMENT "Building Parser with ANTLR4"
 )
+
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR} scriptlang_parser_srcs)
 
 add_scriptlang_library(scriptlang_parser
   ${antlr4_gen_srcs}
+  ${scriptlang_parser_srcs}
 )
 target_link_libraries(scriptlang_parser PUBLIC antlr4_static)
-target_include_directories(scriptlang_parser PUBLIC
+target_include_directories(scriptlang_parser
+  PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/../../../third_party/antlr4/runtime/Cpp/runtime/src
+)
+target_include_directories(scriptlang_parser
+  PUBLIC
+  ${CMAKE_CURRENT_BINARY_DIR}
 )

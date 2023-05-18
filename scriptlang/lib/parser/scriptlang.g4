@@ -8,11 +8,11 @@ identifier: Identifier;
 // type
 type: baseType | functionType;
 
-baseType: Identifier;
+baseType: Identifier ('.' Identifier)*;
 
-parameter: Identifier ':' type;
-parameterList: (parameter (',' parameter)*)?;
-functionType: '(' parameterList ')' '=>' type;
+parameterWithType: (Identifier ':')? type;
+functionType:
+	'(' (parameterWithType (',' parameterWithType)*)? ')' '=>' type;
 
 // statement
 statement:
@@ -25,17 +25,16 @@ statement:
 	| whileStatement
 	| breakStatement
 	| continueStatement
-	| importStatement
-	| exportStatement;
+	| importStatement;
 
 // basis statement
 expressionStatement: expression ';';
 declareStatement:
-	('const' | 'let') Identifier (':' type)? '=' expression ';';
+	'export'? ('const' | 'let') Identifier (':' type)? '=' expression ';';
 assignStatement: expression '=' expression ';';
 
 // flow statement
-returnStatement: 'return' expression ';';
+returnStatement: 'return' expression? ';';
 blockStatement: '{' statement* '}';
 ifStatement:
 	'if' '(' expression ')' blockStatement (
@@ -47,7 +46,6 @@ continueStatement: 'continue' ';';
 
 importStatement:
 	'import' '*' 'as' Identifier 'from' StringLiteral;
-exportStatement: 'export' declareStatement;
 
 // expression
 prefixOperator: 'not' | '+' | '-';
@@ -71,6 +69,8 @@ binaryOperator:
 	| '&&'
 	| '||';
 
+simpleExpression: identifier | literal;
+
 prefixExpression: prefixOperator expression;
 
 parenthesesExpression: '(' expression ')';
@@ -78,14 +78,14 @@ parenthesesExpression: '(' expression ')';
 binaryExpressionRightWithOp:
 	binaryOperator binaryExpressionRight;
 binaryExpressionLeft:
-	identifier
+	simpleExpression
 	| prefixExpression
 	| parenthesesExpression
 	// binaryExpression
 	| callExpression
 	| memberExpression;
 binaryExpressionRight:
-	identifier
+	simpleExpression
 	| prefixExpression
 	| parenthesesExpression
 	| binaryExpression
@@ -94,9 +94,12 @@ binaryExpressionRight:
 binaryExpression:
 	binaryExpressionLeft binaryExpressionRightWithOp+;
 
-callOrMemberExpressionLeft: identifier | parenthesesExpression;
+callOrMemberExpressionLeft:
+	simpleExpression
+	| parenthesesExpression
+	| functionExpression;
 callExpressionRight: '(' (expression (',' expression)*)? ')';
-memberExpressionRight: '.' Identifier;
+memberExpressionRight: '.' identifier;
 callOrMemberExpressionRight:
 	callExpressionRight
 	| memberExpressionRight;
@@ -105,10 +108,12 @@ callExpression:
 memberExpression:
 	callOrMemberExpressionLeft callOrMemberExpressionRight* memberExpressionRight;
 
-functionExpression: '(' parameterList ')' '=>' blockStatement;
+parameterWithIdentifier: identifier (':' type)?;
+functionExpression:
+	'(' (parameterWithIdentifier (',' parameterWithIdentifier)*)? ')' '=>' blockStatement;
 
 expression:
-	identifier
+	simpleExpression
 	| prefixExpression
 	| parenthesesExpression
 	| binaryExpression
