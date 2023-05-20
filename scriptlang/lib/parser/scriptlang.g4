@@ -71,7 +71,14 @@ binaryOperator:
 
 simpleExpression: identifier | literal;
 
-prefixExpression: prefixOperator expression;
+prefixExpressionOperand:
+	simpleExpression
+	// | prefixExpression
+	| parenthesesExpression
+	// | binaryExpression
+	| callExpression
+	| memberExpression;
+prefixExpression: prefixOperator prefixExpressionOperand;
 
 parenthesesExpression: '(' expression ')';
 

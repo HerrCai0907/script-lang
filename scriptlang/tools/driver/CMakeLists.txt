@@ -10,6 +10,7 @@ target_link_libraries(scriptlang
     PRIVATE
     scriptlang_basic
     scriptlang_parser
+    scriptlang_sematic
 )
 
 set_target_properties(scriptlang PROPERTIES

@@ -12,7 +12,7 @@ class ParserImpl;
 class Parser {
 public:
   explicit Parser(llvm::StringRef Code);
-  std::shared_ptr<TopDecls> parse();
+  std::shared_ptr<ast::TopDecls> parse();
 
 private:
   std::shared_ptr<ParserImpl> impl_;
