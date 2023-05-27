@@ -111,8 +111,7 @@ private:
 
 class Decl : public HIR {
 public:
-  Decl(llvm::SmallString<16U> name, std::shared_ptr<Type> type)
-      : name_(std::move(name)), type_(std::move(type)) {}
+  Decl(llvm::StringRef name, std::shared_ptr<Type> type) : name_(name), type_(std::move(type)) {}
   void accept(Visitor &V) override { V.visit(*this); }
 
   bool isConst() const { return isConst_; }
@@ -161,13 +160,13 @@ private:
 };
 class Variant : public Value {
 public:
-  Variant(Decl *decl) : Value(decl->type()), decls_(decl) {}
+  Variant(Decl *decl) : Value(decl->type()), decl_(decl) {}
   void accept(Visitor &V) override { V.visit(*this); }
 
-  Decl *decls() const { return decls_; }
+  Decl *decl() const { return decl_; }
 
 private:
-  Decl *decls_;
+  Decl *decl_;
 };
 class PrefixResult : public Value {
 public:
@@ -187,7 +186,7 @@ class BinaryResult : public Value {
 public:
   BinaryResult(ast::BinaryExpr::Op op, std::shared_ptr<Type> type, std::shared_ptr<Value> lhs,
                std::shared_ptr<Value> rhs)
-      : Value(type), lhs_(lhs), rhs_(rhs) {}
+      : Value(type), op_(op), lhs_(lhs), rhs_(rhs) {}
   void accept(Visitor &V) override { V.visit(*this); }
 
   ast::BinaryExpr::Op op() const { return op_; }
@@ -234,18 +233,18 @@ protected:
 };
 class AssignStatement : public Statement {
 public:
-  AssignStatement(std::shared_ptr<Decl> decl, std::shared_ptr<Value> variant,
+  AssignStatement(std::shared_ptr<Decl> decl, std::shared_ptr<Variant> variant,
                   std::shared_ptr<Value> value)
       : Statement(), decl_(decl), variant_(variant), value_(value) {}
   void accept(Visitor &V) override { V.visit(*this); }
 
   std::shared_ptr<Decl> decl() const { return decl_; }
-  std::shared_ptr<Value> variant() const { return variant_; }
+  std::shared_ptr<Variant> variant() const { return variant_; }
   std::shared_ptr<Value> value() const { return value_; }
 
 private:
-  std::shared_ptr<Decl> decl_;     // maybe nullptr
-  std::shared_ptr<Value> variant_; // maybe nullptr
+  std::shared_ptr<Decl> decl_;       // maybe nullptr
+  std::shared_ptr<Variant> variant_; // maybe nullptr
   std::shared_ptr<Value> value_;
 };
 class LoopStatement : public Statement {

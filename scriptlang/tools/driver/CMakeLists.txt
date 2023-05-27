@@ -11,6 +11,7 @@ target_link_libraries(scriptlang
     scriptlang_basic
     scriptlang_parser
     scriptlang_sematic
+    scriptlang_codegen
 )
 
 set_target_properties(scriptlang PROPERTIES

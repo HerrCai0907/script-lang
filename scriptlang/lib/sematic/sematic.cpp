@@ -1,6 +1,7 @@
 #include "scriptlang/lib/sematic/sematic.hpp"
 #include "scriptlang/lib/parser/ast.hpp"
 #include "scriptlang/lib/sematic/hir.hpp"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Debug.h"
@@ -47,15 +48,16 @@ class ToHIRConverter : public ast::Visitor {
 public:
   ToHIRConverter(TypeSystem const &typeSystem) : hasError_(false), typeSystem_(typeSystem) {}
 
-  llvm::SmallVector<std::shared_ptr<hir::Statement>, 32U>
+  std::shared_ptr<hir::Statement>
   visitAll(llvm::SmallVectorImpl<std::shared_ptr<ast::TopDecls>> const &tops) {
     // TODO
-    llvm::SmallVector<std::shared_ptr<hir::Statement>, 32U> topHirs;
+    llvm::SmallVector<std::shared_ptr<hir::Statement>, 32U> topHIRs;
     for (auto top : tops) {
       visit(*top);
-      topHirs.push_back(stmtResult_);
+      topHIRs.push_back(stmtResult_);
     }
-    return topHirs;
+    // TODO
+    return topHIRs.front();
   }
 
   void visit(ast::TopDecls &topDecls) override {
@@ -75,7 +77,9 @@ public:
   }
   void visit(ast::AssignStmt &stmt) override {
     stmt.lhs()->accept(*this);
-    auto variant = exprResult_;
+    if (!std::dynamic_pointer_cast<hir::Variant>(exprResult_))
+      return stmtResult_.reset();
+    auto variant = std::dynamic_pointer_cast<hir::Variant>(exprResult_);
     stmt.rhs()->accept(*this);
     auto value = exprResult_;
     if (variant == nullptr || value == nullptr)
@@ -112,7 +116,7 @@ public:
       return stmtResult_.reset();
     std::shared_ptr<hir::Decl> decl{new hir::Decl(stmt.name(), declType)};
     stmtResult_.reset(new hir::AssignStatement(
-        decl, std::shared_ptr<hir::Value>(new hir::Variant(decl.get())), init));
+        decl, std::shared_ptr<hir::Variant>(new hir::Variant(decl.get())), init));
   }
   void visit(ast::ExprStmt &stmt) override {
     stmt.expr()->accept(*this);
@@ -150,7 +154,11 @@ public:
   void visit(ast::WhileStmt &stmt) override {
     stmt.condition()->accept(*this);
     auto condition = exprResult_;
-    hasError_ = condition->type() == typeSystem_.getTypeByName("bool");
+    if (condition == nullptr)
+      return stmtResult_.reset();
+    hasError_ = condition->type() != typeSystem_.getTypeByName("bool");
+    if (hasError_)
+      return stmtResult_.reset();
     stmt.block()->accept(*this);
     auto block = stmtResult_;
     // - Loop
@@ -225,12 +233,20 @@ public:
   }
   void visit(ast::FuncExpr &expr) override {}
   void visit(ast::Identifier &expr) override {
+    if (expr.name() == "true") {
+      exprResult_.reset(new hir::IntegerLiteral(typeSystem_.getTypeByName("bool"), 1));
+      return;
+    }
+    if (expr.name() == "false") {
+      exprResult_.reset(new hir::IntegerLiteral(typeSystem_.getTypeByName("bool"), 0));
+      return;
+    }
     auto stmt = stmtResult_.get();
     while (stmt) {
-      auto assginStmt = dynamic_cast<hir::AssignStatement *>(stmt);
-      if (assginStmt) {
-        if (assginStmt->decl() && assginStmt->decl()->name() == expr.name()) {
-          exprResult_.reset(new hir::Variant(assginStmt->decl().get()));
+      auto assignStmt = dynamic_cast<hir::AssignStatement *>(stmt);
+      if (assignStmt) {
+        if (assignStmt->decl() && assignStmt->decl()->name() == expr.name()) {
+          exprResult_.reset(new hir::Variant(assignStmt->decl().get()));
           return;
         }
       }
@@ -294,26 +310,25 @@ public:
 private:
   bool hasError_;
   TypeSystem const &typeSystem_;
+
   std::shared_ptr<hir::Value> exprResult_;
   std::shared_ptr<hir::Statement> stmtResult_;
 };
 
 class Sema::Impl {
 public:
-  bool sematic(llvm::SmallVectorImpl<std::shared_ptr<ast::TopDecls>> &tops) {
+  std::shared_ptr<hir::Statement>
+  sematic(llvm::SmallVectorImpl<std::shared_ptr<ast::TopDecls>> &tops) {
     typeSystems_.reset(new TypeSystem());
     for (auto top : tops)
       typeSystems_->visit(*top);
     if (typeSystems_->hasError())
-      return false;
+      return nullptr;
     hirConverter_.reset(new ToHIRConverter(*typeSystems_));
-    auto hirs = hirConverter_->visitAll(tops);
+    auto hir = hirConverter_->visitAll(tops);
     if (hirConverter_->hasError())
-      return false;
-    for (auto hir : hirs) {
-      hir->dump();
-    }
-    return true;
+      return nullptr;
+    return hir;
   }
 
 private:
@@ -322,7 +337,8 @@ private:
 };
 
 Sema::Sema() : impl_(new Impl()) {}
-bool Sema::sematic(llvm::SmallVectorImpl<std::shared_ptr<ast::TopDecls>> &tops) {
+std::shared_ptr<hir::Statement>
+Sema::sematic(llvm::SmallVectorImpl<std::shared_ptr<ast::TopDecls>> &tops) {
   return impl_->sematic(tops);
 }
 
