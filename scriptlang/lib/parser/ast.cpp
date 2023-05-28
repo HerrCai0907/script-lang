@@ -105,8 +105,8 @@ public:
     Visitor::visit(stmt);
   }
   void visit(DeclStmt &stmt) override {
-    llvm::errs() << space() << "DeclStmt " << magic_enum::enum_name(stmt.kind()) << " "
-                 << stmt.name() << "\n";
+    llvm::errs() << space() << "DeclStmt " << (stmt.isExport() ? "export " : "")
+                 << (stmt.isConst() ? "const " : "") << stmt.name() << "\n";
     RttiIndent indent{this};
     Visitor::visit(stmt);
   }

@@ -1,8 +1,10 @@
 DIAG(unknown_token, Error, "Syntax error: {0}")
-DIAG(unexpected_type, Error, "Expect {0}, got {1}")
-DIAG(binary_expression_expect_same_type, Error, "In binary expressions, type of left expression({0}) is not equal to the right expression({1})")
+DIAG(unexpected_type, Error, "Expect '{0}', got '{1}'")
+DIAG(binary_expression_expect_same_type, Error, "In binary expressions, type of left expression('{0}') is not equal to the right expression('{1}')")
+DIAG(invalid_operand_in_prefix_expression, Error, "Invalid operand '{0}' for '{1}' in prefix expression")
 DIAG(mismatched_arguments_amount, Error, "Expect {0} arguments, but got {1}")
-DIAG(undefined_identifier, Error, "Undefined identifier {0}")
-
+DIAG(undefined_identifier, Error, "Undefined identifier '{0}'")
+DIAG(expect_type_declaration, Error, "Expect type declaration")
+DIAG(expect_type_declaration_with_options, Error, "Expect type declaration, it can be '{0}'")
 
 #undef DIAG

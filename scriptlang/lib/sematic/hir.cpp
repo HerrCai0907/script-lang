@@ -1,47 +1,17 @@
 #include "scriptlang/lib/sematic/hir.hpp"
 #include "magic_enum.hpp"
 #include "scriptlang/lib/basic/printer.hpp"
-#include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace scriptlang::hir {
 
-bool NamedType::equal(Type const &type) const {
-  auto other = dynamic_cast<const NamedType *>(&type);
-  if (other == nullptr)
-    return false;
-  return name_ == other->name_;
+void Visitor::visit(PendingResolvedType &type) {
+  for (auto const &candidate : type.candidates())
+    candidate->accept(*this);
 }
-
-bool FuncType::equal(Type const &type) const {
-  auto other = dynamic_cast<const FuncType *>(&type);
-  if (other == nullptr)
-    return false;
-  if (*returnType_ != *other->returnType_)
-    return false;
-  if (argumentTypes_.size() != other->argumentTypes_.size())
-    return false;
-  for (size_t i = 0; i < argumentTypes_.size(); i++)
-    if (*argumentTypes_[i] != *other->argumentTypes_[i])
-      return false;
-  return true;
-}
-
-llvm::Twine FuncType::toString() {
-  llvm::Twine ret{};
-  ret.concat("(");
-  for (auto argumentType : argumentTypes_) {
-    ret.concat(argumentType->toString());
-  }
-  ret.concat(") => ");
-  ret.concat(returnType_->toString());
-  return ret;
-}
-
 void Visitor::visit(FuncType &type) {
-  for (auto argumentType : type.argumentTypes()) {
+  for (auto const &argumentType : type.argumentTypes())
     argumentType->accept(*this);
-  }
   type.returnType()->accept(*this);
 }
 
@@ -106,51 +76,30 @@ void Visitor::visit(BranchStatement &stmt) {
 void HIR::dump() {
   class Printer : public Visitor, public PrinterBase {
   public:
-    void visit(NamedType &type) override {
-      llvm::errs() << space() << type.name() << "\n";
-      RttiIndent indent{this};
-      Visitor::visit(type);
-    }
-    void visit(FuncType &type) override {
-      llvm::errs() << space() << "FuncType\n";
-      RttiIndent indent{this};
-      for (auto argumentType : type.argumentTypes()) {
-        argumentType->accept(*this);
-      }
-      llvm::errs() << space() << " => ";
-      type.returnType()->accept(*this);
-    }
-
     void visit(Decl &decl) override {
-      llvm::errs() << space() << "Decl " << decl.name() << "\n";
-      RttiIndent indent{this};
-      Visitor::visit(decl);
+      llvm::errs() << space() << "Decl " << decl.name() << ": " << decl.type()->toString() << "\n";
     }
-
     void visit(IntegerLiteral &value) override {
       llvm::errs() << space() << "IntegerLiteral " << value.value() << "\n";
-      RttiIndent indent{this};
-      Visitor::visit(value);
     }
     void visit(FloatLiteral &value) override {
       llvm::errs() << space() << "FloatLiteral " << value.value() << "\n";
-      RttiIndent indent{this};
-      Visitor::visit(value);
     }
     void visit(Variant &value) override {
-      llvm::errs() << space() << "Variant\n";
-      RttiIndent indent{this};
-      Visitor::visit(value);
+      llvm::errs() << space() << "Variant " << value.decl()->name() << "\n";
     }
     void visit(PrefixResult &value) override {
-      llvm::errs() << space() << "PrefixResult\n";
+      llvm::errs() << space() << "PrefixResult " << magic_enum::enum_name(value.getOp()) << " "
+                   << value.type()->toString() << "\n";
       RttiIndent indent{this};
-      Visitor::visit(value);
+      value.operand()->accept(*this);
     }
     void visit(BinaryResult &value) override {
-      llvm::errs() << space() << "BinaryResult " << magic_enum::enum_name(value.op()) << "\n";
+      llvm::errs() << space() << "BinaryResult " << magic_enum::enum_name(value.op()) << " "
+                   << value.type()->toString() << "\n";
       RttiIndent indent{this};
-      Visitor::visit(value);
+      value.lhs()->accept(*this);
+      value.rhs()->accept(*this);
     }
     void visit(CallResult &value) override {
       llvm::errs() << space() << "CallResult\n";

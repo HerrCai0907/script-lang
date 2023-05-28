@@ -4,8 +4,6 @@
 #include "scriptlang/lib/basic/diagnostic.hpp"
 #include "scriptlang/lib/parser/ast.hpp"
 #include "scriptlang/lib/sematic/hir.hpp"
-#include "llvm/ADT/SmallVector.h"
-#include <memory>
 
 namespace scriptlang {
 

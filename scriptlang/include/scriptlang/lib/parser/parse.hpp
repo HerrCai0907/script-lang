@@ -3,7 +3,6 @@
 
 #include "scriptlang/lib/basic/diagnostic.hpp"
 #include "scriptlang/lib/parser/ast.hpp"
-#include "llvm/ADT/StringRef.h"
 #include <memory>
 
 namespace scriptlang {

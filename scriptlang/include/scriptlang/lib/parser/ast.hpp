@@ -3,7 +3,6 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/SMLoc.h"
 #include <memory>
 #include <string>
@@ -143,21 +142,28 @@ public:
 };
 class DeclStmt : public Stmt {
 public:
-  enum class Kind : uint8_t { Normal, Const, Export, ExportConst };
-  DeclStmt(llvm::SMRange range, Kind kind, std::string name, std::shared_ptr<TypeNode> type,
-           std::shared_ptr<Expr> expr)
-      : Stmt(range), kind_(kind), name_(name), type_(type), expr_(expr) {}
+  DeclStmt(llvm::SMRange range, std::string name, std::shared_ptr<TypeNode> type,
+           std::shared_ptr<Expr> expr, llvm::SMLoc nameEndLoc, bool isConst, bool isExport)
+      : Stmt(range), name_(name), type_(type), expr_(expr), nameEndLoc_(nameEndLoc),
+        isConst_(isConst), isExport_(isExport) {}
   void accept(Visitor &V) override { V.visit(*this); }
-  Kind kind() { return kind_; }
   llvm::StringRef name() { return name_; }
   std::shared_ptr<TypeNode> type() { return type_; }
   std::shared_ptr<Expr> expr() { return expr_; }
 
+  llvm::SMLoc nameEndLoc() const { return nameEndLoc_; }
+
+  bool isConst() const { return isConst_; }
+  bool isExport() const { return isExport_; }
+
 private:
-  Kind kind_;
   std::string name_;
   std::shared_ptr<TypeNode> type_;
   std::shared_ptr<Expr> expr_;
+  llvm::SMLoc nameEndLoc_;
+
+  bool isConst_ : 1;
+  bool isExport_ : 1;
 };
 class ExprStmt : public Stmt {
 public:

@@ -3,19 +3,27 @@
 
 #include "scriptlang/lib/parser/ast.hpp"
 #include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Twine.h"
+#include "llvm/Support/SMLoc.h"
 #include <cassert>
+#include <functional>
+#include <list>
 #include <memory>
+#include <set>
 #include <utility>
+
+namespace scriptlang {
+class TypeSystem;
+}
 
 namespace scriptlang::hir {
 
 class HIR;
+
 class Type;
-class NamedType;
 class FuncType;
+class NamedType;
+class PendingResolvedType;
 
 class Decl;
 
@@ -40,8 +48,9 @@ public:
   virtual void visit(HIR &type) {}
 
   virtual void visit(Type &type) {}
-  virtual void visit(NamedType &type) {}
   virtual void visit(FuncType &type);
+  virtual void visit(NamedType &type) {}
+  virtual void visit(PendingResolvedType &type);
 
   virtual void visit(Decl &decl);
 
@@ -79,45 +88,94 @@ public:
   bool operator==(Type const &type) const { return equal(type); }
   bool operator!=(Type const &type) const { return !(*this == type); }
 
-  virtual llvm::Twine toString() = 0;
+  virtual std::string toString() const = 0;
 
 private:
   virtual bool equal(Type const &type) const = 0;
 };
 class NamedType : public Type {
 public:
-  explicit NamedType(llvm::SmallString<16U> name) : name_(name) {}
   void accept(Visitor &V) override { V.visit(*this); }
 
-  llvm::SmallString<16U> name() { return name_; }
-  llvm::Twine toString() override { return name_; }
+  llvm::SmallString<16U> name() const { return name_; }
+  std::string toString() const override { return name_.str().str(); }
 
 private:
   llvm::SmallString<16U> name_;
+
+  explicit NamedType(llvm::SmallString<16U> name) : name_(name) {}
   bool equal(Type const &type) const override;
+
+  friend class ::scriptlang::TypeSystem;
+};
+class PendingResolvedType : public Type, public std::enable_shared_from_this<PendingResolvedType> {
+public:
+  using TypeCandidates = std::set<std::shared_ptr<Type>>;
+  enum class CallBackStatus { Resolved, Pending };
+  using OnChangeCallback = std::function<void()>;
+  TypeCandidates const &candidates() const { return candidates_; }
+  std::string toString() const override;
+
+  bool isInvalid() const { return candidates_.size() == 0; }
+  bool canBeResolved() const { return candidates_.size() == 1; }
+
+  std::shared_ptr<Type> const &getDefaultType() const { return defaultType_; }
+  void setDefaultType(std::shared_ptr<Type> const &type);
+
+  bool removeIf(std::function<bool(std::shared_ptr<Type> const &)> condition,
+                std::list<OnChangeCallback> &onChanges);
+  bool onlyKeepCandidate(std::shared_ptr<Type> const &type, std::list<OnChangeCallback> &onChanges);
+  static void intersection(PendingResolvedType &lhs, PendingResolvedType &rhs,
+                           std::list<OnChangeCallback> &onChanges);
+  void applyDefaultType(std::list<OnChangeCallback> &onChanges);
+
+  std::shared_ptr<Type> resolve();
+  std::shared_ptr<Type> tryResolve();
+
+  void registerOnChangeCallback(OnChangeCallback cb) {
+    onChangeCallbacks_.push_back(std::move(cb));
+  }
+  void clearOnChangeCallback() { onChangeCallbacks_.clear(); }
+
+private:
+  TypeCandidates candidates_;
+  std::list<OnChangeCallback> onChangeCallbacks_;
+  std::shared_ptr<Type> defaultType_;
+
+  explicit PendingResolvedType(TypeCandidates candidates)
+      : candidates_(candidates), onChangeCallbacks_(), defaultType_(nullptr) {}
+  bool equal(Type const &type) const override { return false; }
+  void appendOnChangeToList(std::list<OnChangeCallback> &onChanges);
+
+  friend class ::scriptlang::TypeSystem;
 };
 class FuncType : public Type {
 public:
   using ArgumentTypes = llvm::SmallVector<std::shared_ptr<Type>, 4U>;
-  FuncType(ArgumentTypes argumentTypes, std::shared_ptr<Type> returnType)
-      : Type(), argumentTypes_(argumentTypes), returnType_(returnType) {}
   void accept(Visitor &V) override { V.visit(*this); }
 
   ArgumentTypes const &argumentTypes() const { return argumentTypes_; }
   std::shared_ptr<Type> returnType() const { return returnType_; }
 
-  llvm::Twine toString() override;
+  std::string toString() const override;
 
 private:
   ArgumentTypes argumentTypes_;
   std::shared_ptr<Type> returnType_;
 
+  FuncType(ArgumentTypes argumentTypes, std::shared_ptr<Type> returnType)
+      : Type(), argumentTypes_(std::move(argumentTypes)), returnType_(returnType) {}
   bool equal(Type const &type) const override;
+
+  friend class ::scriptlang::TypeSystem;
 };
 
 class Decl : public HIR {
 public:
-  Decl(llvm::StringRef name, std::shared_ptr<Type> type) : name_(name), type_(std::move(type)) {}
+  Decl(llvm::StringRef name, std::shared_ptr<Type> type, llvm::SMLoc typeDeclarationLoc)
+      : name_(name), type_(std::move(type)), typeDeclarationLoc_(typeDeclarationLoc) {
+    assert(type_ != nullptr);
+  }
   void accept(Visitor &V) override { V.visit(*this); }
 
   bool isConst() const { return isConst_; }
@@ -125,9 +183,13 @@ public:
   llvm::StringRef name() const { return name_; }
   std::shared_ptr<Type> type() const { return type_; }
 
+  llvm::SMLoc const &getTypeDeclarationLoc() const { return typeDeclarationLoc_; }
+
 private:
   llvm::SmallString<16U> name_;
   std::shared_ptr<Type> type_;
+
+  llvm::SMLoc typeDeclarationLoc_;
 
   bool isConst_;
 };

@@ -5,7 +5,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SMLoc.h"
-#include "llvm/Support/raw_ostream.h"
 #include <memory>
 #include <unordered_map>
 
@@ -145,18 +144,19 @@ public:
   }
 
   void exitDeclareStatement(scriptlangParser::DeclareStatementContext *ctx) override {
-    ast::DeclStmt::Kind kind = ast::DeclStmt::Kind::Normal;
-    if (ctx->EXPORT() && ctx->CONST())
-      kind = ast::DeclStmt::Kind::ExportConst;
-    else if (ctx->EXPORT())
-      kind = ast::DeclStmt::Kind::Export;
-    else if (ctx->CONST())
-      kind = ast::DeclStmt::Kind::Const;
+    // if (ctx->EXPORT() && ctx->CONST())
+    //   kind = ast::DeclStmt::Kind::ExportConst;
+    // else if (ctx->EXPORT())
+    //   kind = ast::DeclStmt::Kind::Export;
+    // else if (ctx->CONST())
+    //   kind = ast::DeclStmt::Kind::Const;
 
     auto type = ctx->type() ? getAstByContext<ast::TypeNode>(ctx->type()) : nullptr;
-    map_.emplace(ctx, std::shared_ptr<ast::DeclStmt>(
-                          new ast::DeclStmt(getRange(ctx), kind, ctx->Identifier()->getText(), type,
-                                            getAstByContext<ast::Expr>(ctx->expression()))));
+    map_.emplace(ctx,
+                 std::shared_ptr<ast::DeclStmt>(new ast::DeclStmt(
+                     getRange(ctx), ctx->Identifier()->getText(), type,
+                     getAstByContext<ast::Expr>(ctx->expression()), getRange(ctx->Identifier()).End,
+                     ctx->CONST() != nullptr, ctx->EXPORT() != nullptr)));
   }
 
   void exitAssignStatement(scriptlangParser::AssignStatementContext *ctx) override {
@@ -345,6 +345,11 @@ private:
     return llvm::SMRange{
         llvm::SMLoc::getFromPointer(&code_.data()[ctx->getStart()->getStartIndex()]),
         llvm::SMLoc::getFromPointer(&code_.data()[ctx->getStop()->getStopIndex()])};
+  }
+  llvm::SMRange getRange(antlr4::tree::TerminalNode const *token) const {
+    return llvm::SMRange{
+        llvm::SMLoc::getFromPointer(&code_.data()[token->getSymbol()->getStartIndex()]),
+        llvm::SMLoc::getFromPointer(&code_.data()[token->getSymbol()->getStopIndex()])};
   }
 };
 

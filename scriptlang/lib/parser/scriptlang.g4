@@ -95,7 +95,7 @@ binaryExpressionRight:
 	simpleExpression
 	| prefixExpression
 	| parenthesesExpression
-	| binaryExpression
+	// | binaryExpression
 	| callExpression
 	| memberExpression;
 binaryExpression:
