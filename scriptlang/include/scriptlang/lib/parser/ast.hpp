@@ -80,6 +80,7 @@ public:
   virtual void accept(Visitor &) = 0;
 
   llvm::SMRange range() { return range_; }
+  llvm::SMLoc start() { return range_.Start; }
 
   void dump();
 

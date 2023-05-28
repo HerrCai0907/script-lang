@@ -15,7 +15,7 @@ namespace scriptlang {
 
 class TypeSystem : public ast::Visitor {
 public:
-  TypeSystem() : hasError_(false) {
+  explicit TypeSystem(DiagnosticsEngine &diag) : diag_(diag) {
     addType(std::shared_ptr<hir::NamedType>(new hir::NamedType(llvm::StringRef("bool"))));
     addType(std::shared_ptr<hir::NamedType>(new hir::NamedType(llvm::StringRef("i8"))));
     addType(std::shared_ptr<hir::NamedType>(new hir::NamedType(llvm::StringRef("i16"))));
@@ -26,17 +26,17 @@ public:
     addType(std::shared_ptr<hir::NamedType>(new hir::NamedType(llvm::StringRef("f32"))));
   }
 
-  bool hasError() const { return hasError_; }
-
   std::shared_ptr<hir::NamedType> getTypeByName(llvm::StringRef name) const {
     auto it = typeMap_.find(name);
-    if (it == typeMap_.end())
+    if (it == typeMap_.end()) {
+      (void)diag_; // TODO
       return nullptr;
+    }
     return it->second;
   }
 
 private:
-  bool hasError_;
+  DiagnosticsEngine &diag_;
   llvm::StringMap<std::shared_ptr<hir::NamedType>> typeMap_;
 
   bool addType(std::shared_ptr<hir::NamedType> const &type) {
@@ -46,7 +46,8 @@ private:
 
 class ToHIRConverter : public ast::Visitor {
 public:
-  ToHIRConverter(TypeSystem const &typeSystem) : hasError_(false), typeSystem_(typeSystem) {}
+  ToHIRConverter(DiagnosticsEngine &diag, TypeSystem const &typeSystem)
+      : diag_(diag), typeSystem_(typeSystem) {}
 
   std::shared_ptr<hir::Statement>
   visitAll(llvm::SmallVectorImpl<std::shared_ptr<ast::TopDecls>> const &tops) {
@@ -111,8 +112,7 @@ public:
     stmt.expr()->accept(*this);
     auto init = exprResult_;
     auto declType = handTypeNode(stmt.type());
-    hasError_ = declType == nullptr;
-    if (hasError_)
+    if (declType == nullptr)
       return stmtResult_.reset();
     std::shared_ptr<hir::Decl> decl{new hir::Decl(stmt.name(), declType)};
     stmtResult_.reset(new hir::AssignStatement(
@@ -128,9 +128,11 @@ public:
   void visit(ast::IfStmt &stmt) override {
     stmt.condition()->accept(*this);
     auto condition = exprResult_;
-    hasError_ = condition->type() != typeSystem_.getTypeByName("bool");
-    if (hasError_)
+    if (condition->type() != typeSystem_.getTypeByName("bool")) {
+      diag_.report(stmt.condition()->start(), Diag::unexpected_type, "bool",
+                   condition->type()->toString());
       return stmtResult_.reset();
+    }
     stmt.thenBlock()->accept(*this);
     auto thenStatement = stmtResult_;
     std::shared_ptr<hir::Statement> elseStatement = nullptr;
@@ -156,9 +158,11 @@ public:
     auto condition = exprResult_;
     if (condition == nullptr)
       return stmtResult_.reset();
-    hasError_ = condition->type() != typeSystem_.getTypeByName("bool");
-    if (hasError_)
+    if (condition->type() != typeSystem_.getTypeByName("bool")) {
+      diag_.report(stmt.condition()->start(), Diag::unexpected_type, "bool",
+                   condition->type()->toString());
       return stmtResult_.reset();
+    }
     stmt.block()->accept(*this);
     auto block = stmtResult_;
     // - Loop
@@ -196,38 +200,72 @@ public:
   }
 
   void visit(ast::BinaryExpr &expr) override {
-    if (hasError_)
-      return exprResult_.reset();
     expr.lhs()->accept(*this);
     auto lhs = exprResult_;
     expr.rhs()->accept(*this);
     auto rhs = exprResult_;
     if (lhs == nullptr || rhs == nullptr)
       return exprResult_.reset();
-    hasError_ = *lhs->type() != *rhs->type();
-    if (hasError_)
+    if (*lhs->type() != *rhs->type()) {
+      diag_.report(expr.lhs()->start(), Diag::binary_expression_expect_same_type,
+                   lhs->type()->toString(), rhs->type()->toString());
       return exprResult_.reset();
-    exprResult_.reset(new hir::BinaryResult(expr.op(), lhs->type(), lhs, rhs));
+    }
+    std::shared_ptr<hir::Type> targetType;
+    switch (expr.op()) {
+    case ast::BinaryExpr::Op::ADD:
+    case ast::BinaryExpr::Op::SUB:
+    case ast::BinaryExpr::Op::MUL:
+    case ast::BinaryExpr::Op::DIV:
+      targetType = lhs->type();
+      break;
+    case ast::BinaryExpr::Op::LESS_THAN:
+    case ast::BinaryExpr::Op::GREATER_THAN:
+    case ast::BinaryExpr::Op::NO_LESS_THAN:
+    case ast::BinaryExpr::Op::NO_GREATER_THAN:
+    case ast::BinaryExpr::Op::EQUAL:
+    case ast::BinaryExpr::Op::NOT_EQUAL:
+      targetType = typeSystem_.getTypeByName("bool");
+      break;
+    case ast::BinaryExpr::Op::MOD:
+    case ast::BinaryExpr::Op::LEFT_SHIFT:
+    case ast::BinaryExpr::Op::RIGHT_SHIFT:
+    case ast::BinaryExpr::Op::AND:
+    case ast::BinaryExpr::Op::OR:
+    case ast::BinaryExpr::Op::XOR:
+    case ast::BinaryExpr::Op::LOGIC_AND:
+    case ast::BinaryExpr::Op::LOGIC_OR:
+      targetType = lhs->type();
+      break;
+    }
+
+    exprResult_.reset(new hir::BinaryResult(expr.op(), targetType, lhs, rhs));
   }
   void visit(ast::CallExpr &expr) override {
-    if (hasError_)
-      return exprResult_.reset();
     expr.caller()->accept(*this);
     auto func = exprResult_;
     auto funcType = std::dynamic_pointer_cast<hir::FuncType>(func->type());
-    hasError_ = funcType == nullptr;
-    if (hasError_)
+    if (funcType == nullptr) {
+      diag_.report(expr.caller()->start(), Diag::unexpected_type, "Function",
+                   func->type()->toString());
       return exprResult_.reset();
-    hasError_ = expr.arguments().size() != funcType->argumentTypes().size();
-    if (hasError_)
+    }
+    if (expr.arguments().size() != funcType->argumentTypes().size()) {
+      diag_.report(expr.start(), Diag ::mismatched_arguments_amount,
+                   funcType->argumentTypes().size(), expr.arguments().size());
       return exprResult_.reset();
+    }
     hir::CallResult::ArgumentVec arguments;
     for (size_t i = 0; i < expr.arguments().size(); i++) {
-      expr.arguments()[i]->accept(*this);
-      arguments.push_back(exprResult_);
-      hasError_ = *exprResult_->type() != *funcType->argumentTypes()[i];
-      if (hasError_)
+      auto &argument = expr.arguments()[i];
+      argument->accept(*this);
+      auto argumentExpr = exprResult_;
+      arguments.push_back(argumentExpr);
+      if (*argumentExpr->type() != *funcType->argumentTypes()[i]) {
+        diag_.report(expr.arguments()[i]->start(), Diag::unexpected_type,
+                     funcType->argumentTypes()[i]->toString(), exprResult_->type()->toString());
         return exprResult_.reset();
+      }
     }
     exprResult_.reset(new hir::CallResult(funcType->returnType(), func, arguments));
   }
@@ -252,7 +290,7 @@ public:
       }
       stmt = stmt->prev();
     }
-    hasError_ = true;
+    diag_.report(expr.start(), Diag::undefined_identifier, expr.name());
     return exprResult_.reset();
   }
   void visit(ast::LiteralExpr &expr) override {
@@ -285,30 +323,35 @@ public:
     auto operand = exprResult_;
     switch (expr.op()) {
     case ast::PrefixExpr::Op::Not:
-      hasError_ = operand->type() != typeSystem_.getTypeByName("bool");
-      if (hasError_)
+      if (operand->type() != typeSystem_.getTypeByName("bool")) {
+        diag_.report(expr.expr()->start(), Diag::unexpected_type, "bool",
+                     operand->type()->toString());
         return exprResult_.reset();
+      }
       exprResult_.reset(new hir::PrefixResult(hir::PrefixResult::Op::Not, operand));
       break;
     case ast::PrefixExpr::Op::Plus:
-      hasError_ = operand->type() != typeSystem_.getTypeByName("i32");
-      if (hasError_)
+      if (operand->type() != typeSystem_.getTypeByName("i32")) {
+        diag_.report(expr.expr()->start(), Diag::unexpected_type, "i32",
+                     operand->type()->toString());
         return exprResult_.reset();
+      }
       exprResult_ = operand;
       break;
     case ast::PrefixExpr::Op::Minus:
-      hasError_ = operand->type() != typeSystem_.getTypeByName("i32");
-      if (hasError_)
+      if (operand->type() != typeSystem_.getTypeByName("i32")) {
+        diag_.report(expr.expr()->start(), Diag::unexpected_type, "i32",
+                     operand->type()->toString());
         return exprResult_.reset();
+      }
       exprResult_.reset(new hir::PrefixResult(hir::PrefixResult::Op::Minus, operand));
       break;
     }
   }
 
-  bool hasError() const { return hasError_; }
-
 private:
-  bool hasError_;
+  DiagnosticsEngine &diag_;
+
   TypeSystem const &typeSystem_;
 
   std::shared_ptr<hir::Value> exprResult_;
@@ -317,26 +360,30 @@ private:
 
 class Sema::Impl {
 public:
+  Impl(DiagnosticsEngine &diag) : diag_(diag) {}
+
   std::shared_ptr<hir::Statement>
   sematic(llvm::SmallVectorImpl<std::shared_ptr<ast::TopDecls>> &tops) {
-    typeSystems_.reset(new TypeSystem());
+    typeSystems_.reset(new TypeSystem(diag_));
     for (auto top : tops)
       typeSystems_->visit(*top);
-    if (typeSystems_->hasError())
+    if (diag_.numError() > 0)
       return nullptr;
-    hirConverter_.reset(new ToHIRConverter(*typeSystems_));
+    hirConverter_.reset(new ToHIRConverter(diag_, *typeSystems_));
     auto hir = hirConverter_->visitAll(tops);
-    if (hirConverter_->hasError())
+    if (diag_.numError() > 0)
       return nullptr;
     return hir;
   }
 
 private:
+  DiagnosticsEngine &diag_;
+
   std::shared_ptr<TypeSystem> typeSystems_;
   std::shared_ptr<ToHIRConverter> hirConverter_;
 };
 
-Sema::Sema() : impl_(new Impl()) {}
+Sema::Sema(DiagnosticsEngine &diag) : impl_(new Impl(diag)) {}
 std::shared_ptr<hir::Statement>
 Sema::sematic(llvm::SmallVectorImpl<std::shared_ptr<ast::TopDecls>> &tops) {
   return impl_->sematic(tops);

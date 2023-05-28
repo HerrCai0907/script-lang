@@ -1,0 +1,8 @@
+DIAG(unknown_token, Error, "Syntax error: {0}")
+DIAG(unexpected_type, Error, "Expect {0}, got {1}")
+DIAG(binary_expression_expect_same_type, Error, "In binary expressions, type of left expression({0}) is not equal to the right expression({1})")
+DIAG(mismatched_arguments_amount, Error, "Expect {0} arguments, but got {1}")
+DIAG(undefined_identifier, Error, "Undefined identifier {0}")
+
+
+#undef DIAG

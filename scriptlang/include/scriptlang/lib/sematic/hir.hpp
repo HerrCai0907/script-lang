@@ -5,6 +5,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Twine.h"
 #include <cassert>
 #include <memory>
 #include <utility>
@@ -78,6 +79,8 @@ public:
   bool operator==(Type const &type) const { return equal(type); }
   bool operator!=(Type const &type) const { return !(*this == type); }
 
+  virtual llvm::Twine toString() = 0;
+
 private:
   virtual bool equal(Type const &type) const = 0;
 };
@@ -87,6 +90,7 @@ public:
   void accept(Visitor &V) override { V.visit(*this); }
 
   llvm::SmallString<16U> name() { return name_; }
+  llvm::Twine toString() override { return name_; }
 
 private:
   llvm::SmallString<16U> name_;
@@ -101,6 +105,8 @@ public:
 
   ArgumentTypes const &argumentTypes() const { return argumentTypes_; }
   std::shared_ptr<Type> returnType() const { return returnType_; }
+
+  llvm::Twine toString() override;
 
 private:
   ArgumentTypes argumentTypes_;

@@ -1,6 +1,7 @@
 #include "scriptlang/lib/sematic/hir.hpp"
 #include "magic_enum.hpp"
 #include "scriptlang/lib/basic/printer.hpp"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace scriptlang::hir {
@@ -24,6 +25,17 @@ bool FuncType::equal(Type const &type) const {
     if (*argumentTypes_[i] != *other->argumentTypes_[i])
       return false;
   return true;
+}
+
+llvm::Twine FuncType::toString() {
+  llvm::Twine ret{};
+  ret.concat("(");
+  for (auto argumentType : argumentTypes_) {
+    ret.concat(argumentType->toString());
+  }
+  ret.concat(") => ");
+  ret.concat(returnType_->toString());
+  return ret;
 }
 
 void Visitor::visit(FuncType &type) {

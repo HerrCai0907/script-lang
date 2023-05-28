@@ -2,6 +2,7 @@
 #include "antlr4_generated/scriptlangBaseListener.h"
 #include "antlr4_generated/scriptlangLexer.h"
 #include "scriptlang/lib/parser/ast.hpp"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/raw_ostream.h"
@@ -349,9 +350,13 @@ private:
 
 class ParserImpl {
 public:
-  explicit ParserImpl(llvm::StringRef code) : code_(code) {}
+  ParserImpl(DiagnosticsEngine &diag, llvm::SourceMgr &sourceMgr)
+      : diag_(diag), sourceMgr_(sourceMgr) {}
+
   std::shared_ptr<ast::TopDecls> parse() {
-    antlr4::ANTLRInputStream inputStream{code_.data(), code_.size()};
+    auto mainSource = sourceMgr_.getMemoryBuffer(sourceMgr_.getMainFileID())->getBuffer();
+
+    antlr4::ANTLRInputStream inputStream{mainSource.data(), mainSource.size()};
     scriptlangLexer lexer{&inputStream};
     antlr4::CommonTokenStream tokens{&lexer};
     scriptlangParser parser(&tokens);
@@ -359,16 +364,33 @@ public:
     // TODO(better error message)
     class ErrorListener : public antlr4::BaseErrorListener {
     public:
-      virtual void syntaxError(antlr4::Recognizer *recognizer, antlr4::Token *offendingSymbol,
-                               size_t line, size_t charPositionInLine, const std::string &msg,
-                               std::exception_ptr e) override {
-        llvm::errs() << "syntaxError: " << msg << "(" << line << ":" << charPositionInLine << ")\n";
+      explicit ErrorListener(DiagnosticsEngine &diag, llvm::StringRef source)
+          : diag_(diag), source_(source) {}
+      void syntaxError(antlr4::Recognizer *recognizer, antlr4::Token *offendingSymbol, size_t line,
+                       size_t charPositionInLine, const std::string &msg,
+                       std::exception_ptr e) override {
+        llvm::SMLoc loc{};
+        if (offendingSymbol)
+          loc = llvm::SMLoc::getFromPointer(&source_.data()[offendingSymbol->getStartIndex()]);
+        diag_.report(loc, Diag::unknown_token, msg.c_str());
       }
-    } errorListener;
+      void reportAmbiguity(antlr4::Parser *recognizer, const antlr4::dfa::DFA &dfa,
+                           size_t startIndex, size_t stopIndex, bool exact,
+                           const antlrcpp::BitSet &ambigAlts,
+                           antlr4::atn::ATNConfigSet *configs) override {
+        assert(false);
+      }
+
+    private:
+      DiagnosticsEngine &diag_;
+      llvm::StringRef source_;
+    };
+    ErrorListener errorListener{diag_, mainSource};
+
     parser.removeErrorListeners();
     parser.addErrorListener(&errorListener);
 
-    AntlrListener listener{code_};
+    AntlrListener listener{mainSource};
     try {
       antlr4::tree::ParseTreeWalker::DEFAULT.walk(&listener, parser.scriptlang());
     } catch (...) {
@@ -377,10 +399,12 @@ public:
   }
 
 private:
-  llvm::StringRef code_;
+  DiagnosticsEngine &diag_;
+  llvm::SourceMgr &sourceMgr_;
 };
 
-Parser::Parser(llvm::StringRef Code) : impl_(new ParserImpl(Code)) {}
+Parser::Parser(DiagnosticsEngine &diag, llvm::SourceMgr &sourceMgr)
+    : impl_(new ParserImpl(diag, sourceMgr)) {}
 
 std::shared_ptr<ast::TopDecls> Parser::parse() { return impl_->parse(); }
 
