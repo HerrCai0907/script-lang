@@ -4,7 +4,12 @@ DIAG(binary_expression_expect_same_type, Error, "In binary expressions, type of 
 DIAG(invalid_operand_in_prefix_expression, Error, "Invalid operand '{0}' for '{1}' in prefix expression")
 DIAG(mismatched_arguments_amount, Error, "Expect {0} arguments, but got {1}")
 DIAG(undefined_identifier, Error, "Undefined identifier '{0}'")
+DIAG(redefined_variable, Error, "Redefinition of '{0}'")
+DIAG(define_variable_here, Note, "Previous definition is here")
 DIAG(expect_type_declaration, Error, "Expect type declaration")
 DIAG(expect_type_declaration_with_options, Error, "Expect type declaration, it can be '{0}'")
+DIAG(nonassignable_expression, Error, "Expression is not assignable")
+DIAG(assign_to_const, Error, "Cannot assign to const variable '{0}'")
+DIAG(define_const_variable_here, Note, "Variable '{0}' declared const here")
 
 #undef DIAG

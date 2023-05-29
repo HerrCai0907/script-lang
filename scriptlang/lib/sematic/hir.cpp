@@ -5,6 +5,25 @@
 
 namespace scriptlang::hir {
 
+LoopStatement::LoopStatement(std::shared_ptr<Statement> body) : Statement(), body_(body) {
+  if (body_)
+    body_->setPrev(this);
+}
+BlockStatement::BlockStatement(std::shared_ptr<Statement> body) : Statement(), body_(body) {
+  if (body_)
+    body_->setPrev(this);
+}
+BranchStatement::BranchStatement(std::shared_ptr<Value> condition,
+                                 std::shared_ptr<Statement> thenStatement,
+                                 std::shared_ptr<Statement> elseStatement)
+    : Statement(), condition_(condition), thenStatement_(thenStatement),
+      elseStatement_(elseStatement) {
+  assert(thenStatement_ != nullptr);
+  thenStatement_->setPrev(this);
+  if (elseStatement_)
+    elseStatement_->setPrev(this);
+}
+
 void Visitor::visit(PendingResolvedType &type) {
   for (auto const &candidate : type.candidates())
     candidate->accept(*this);
@@ -43,8 +62,6 @@ void Visitor::visit(Statement &stmt) {
     stmt.next()->accept(*this);
 }
 void Visitor::visit(AssignStatement &stmt) {
-  if (stmt.decl())
-    stmt.decl()->accept(*this);
   if (stmt.variant())
     stmt.variant()->accept(*this);
   stmt.value()->accept(*this);

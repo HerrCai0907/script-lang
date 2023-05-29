@@ -2,7 +2,6 @@
 #include "scriptlang/lib/parser/ast.hpp"
 #include "scriptlang/lib/sematic/hir.hpp"
 #include "scriptlang/lib/sematic/hir_coverter.hpp"
-#include "llvm/Support/ErrorHandling.h"
 #include <memory>
 
 namespace scriptlang {
@@ -37,29 +36,22 @@ void HIRConverter::visit(ast::TopDecls &topDecls) {
 }
 void HIRConverter::visit(ast::AssignStmt &stmt) {
   stmt.lhs()->accept(*this);
-  if (!std::dynamic_pointer_cast<hir::Variant>(exprResult_))
-    return stmtResult_.reset();
   auto variant = std::dynamic_pointer_cast<hir::Variant>(exprResult_);
+  if (variant == nullptr) {
+    diag_.report(stmt.start(), Diag::nonassignable_expression);
+    return stmtResult_.reset();
+  }
   stmt.rhs()->accept(*this);
   auto value = exprResult_;
   if (variant == nullptr || value == nullptr)
     return stmtResult_.reset();
-  stmtResult_.reset(new hir::AssignStatement(nullptr, variant, value));
-}
-void HIRConverter::visit(ast::BlockStmt &stmt) {
-  std::shared_ptr<hir::Statement> start;
-  std::shared_ptr<hir::Statement> last;
-  for (auto subStmt : stmt) {
-    subStmt->accept(*this);
-    if (stmtResult_ == nullptr)
-      continue;
-    if (last)
-      last->setNextStatement(stmtResult_);
-    else
-      start = stmtResult_;
-    last = stmtResult_;
+  if (variant->decl()->isConst()) {
+    auto decl = variant->decl();
+    diag_.report(stmt.start(), Diag::assign_to_const, decl->name());
+    diag_.report(decl->getStartLoc(), Diag::define_const_variable_here, decl->name());
+    return stmtResult_.reset();
   }
-  stmtResult_.reset(new hir::BlockStatement(start));
+  stmtResult_.reset(new hir::AssignStatement(variant, value, /*isDecl*/ false));
 }
 void HIRConverter::visit(ast::BreakStmt &) {
   stmtResult_.reset(new hir::JumpStatement(hir::JumpStatement::Kind::Break));
@@ -75,17 +67,41 @@ void HIRConverter::visit(ast::DeclStmt &stmt) {
   auto declType = handTypeNode(stmt.type());
   if (declType == nullptr)
     declType = init->type();
-  std::shared_ptr<hir::Decl> decl{new hir::Decl(stmt.name(), declType, stmt.nameEndLoc())};
+  std::shared_ptr<hir::Decl> decl{
+      new hir::Decl(stmt.name(), declType, stmt.start(), stmt.nameEndLoc())};
   decl->setConst(stmt.isConst());
-  stmtResult_.reset(new hir::AssignStatement(
-      decl, std::shared_ptr<hir::Variant>(new hir::Variant(decl.get())), init));
+  if (declarationMgr_.addDecl(decl) == false) {
+    diag_.report(stmt.start(), Diag::redefined_variable, decl->name());
+    diag_.report(declarationMgr_.findDeclByName(decl->name())->getStartLoc(),
+                 Diag::define_variable_here);
+    return stmtResult_.reset();
+  }
+  stmtResult_.reset(new hir::AssignStatement(std::shared_ptr<hir::Variant>(new hir::Variant(decl)),
+                                             init, /*isDecl*/ false));
 }
 void HIRConverter::visit(ast::ExprStmt &stmt) {
   stmt.expr()->accept(*this);
   auto value = exprResult_;
   if (value == nullptr)
     return stmtResult_.reset();
-  stmtResult_.reset(new hir::AssignStatement(nullptr, nullptr, value));
+  stmtResult_.reset(new hir::AssignStatement(nullptr, value, /*isDecl*/ false));
+}
+void HIRConverter::visit(ast::BlockStmt &stmt) {
+  std::shared_ptr<hir::Statement> start;
+  std::shared_ptr<hir::Statement> last;
+  declarationMgr_.enterScope();
+  for (auto subStmt : stmt) {
+    subStmt->accept(*this);
+    if (stmtResult_ == nullptr)
+      continue;
+    if (last)
+      last->setNextStatement(stmtResult_);
+    else
+      start = stmtResult_;
+    last = stmtResult_;
+  }
+  declarationMgr_.exitScope();
+  stmtResult_.reset(new hir::BlockStatement(start));
 }
 void HIRConverter::visit(ast::IfStmt &stmt) {
   stmt.condition()->accept(*this);
@@ -254,19 +270,13 @@ void HIRConverter::visit(ast::Identifier &expr) {
     exprResult_.reset(new hir::IntegerLiteral(typeSystem_.boolTy(), 0));
     return;
   }
-  auto stmt = stmtResult_.get();
-  while (stmt) {
-    auto assignStmt = dynamic_cast<hir::AssignStatement *>(stmt);
-    if (assignStmt) {
-      if (assignStmt->decl() && assignStmt->decl()->name() == expr.name()) {
-        exprResult_.reset(new hir::Variant(assignStmt->decl().get()));
-        return;
-      }
-    }
-    stmt = stmt->prev();
+  auto decl = declarationMgr_.findDeclByName(expr.name());
+  if (decl == nullptr) {
+    diag_.report(expr.start(), Diag::undefined_identifier, expr.name());
+    return exprResult_.reset();
   }
-  diag_.report(expr.start(), Diag::undefined_identifier, expr.name());
-  return exprResult_.reset();
+  exprResult_.reset(new hir::Variant(decl));
+  return;
 }
 void HIRConverter::visit(ast::LiteralExpr &expr) {
   switch (expr.kind()) {
@@ -329,6 +339,8 @@ void HIRConverter::visit(ast::PrefixExpr &expr) {
   }
   expr.expr()->accept(*this);
   auto operand = exprResult_;
+  if (operand == nullptr)
+    return exprResult_.reset();
   TypeSystem::ApplyKind kind;
   switch (expr.op()) {
   case ast::PrefixExpr::Op::Not:

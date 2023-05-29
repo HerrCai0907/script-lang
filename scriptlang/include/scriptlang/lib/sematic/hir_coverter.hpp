@@ -2,6 +2,7 @@
 #define SCRIPTLANG_LIB_SEMATIC_HIR_COVERTER_HPP
 
 #include "scriptlang/lib/parser/ast.hpp"
+#include "scriptlang/lib/sematic/decl_manager.hpp"
 #include "scriptlang/lib/sematic/hir.hpp"
 #include "scriptlang/lib/sematic/sematic.hpp"
 #include "scriptlang/lib/sematic/type_system.hpp"
@@ -19,7 +20,7 @@ namespace scriptlang {
 class HIRConverter : public ast::Visitor {
 public:
   HIRConverter(DiagnosticsEngine &diag, TypeSystem &typeSystem)
-      : diag_(diag), typeSystem_(typeSystem) {}
+      : diag_(diag), typeSystem_(typeSystem), declarationMgr_(), exprResult_(), stmtResult_() {}
 
   std::shared_ptr<hir::Statement>
   visitAll(llvm::SmallVectorImpl<std::shared_ptr<ast::TopDecls>> const &tops);
@@ -50,6 +51,7 @@ private:
   DiagnosticsEngine &diag_;
 
   TypeSystem &typeSystem_;
+  DeclarationMgr declarationMgr_;
 
   std::shared_ptr<hir::Value> exprResult_;
   std::shared_ptr<hir::Statement> stmtResult_;

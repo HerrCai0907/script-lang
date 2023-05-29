@@ -151,16 +151,17 @@ public:
     auto value = currentValue_;
     if (!currentValue_)
       return;
-    if (stmt.decl()) {
-      stmt.decl()->type()->accept(*this);
+    auto decl = stmt.variant()->decl();
+    if (stmt.isDecl()) {
+      decl->type()->accept(*this);
       if (!currentType_)
         return;
       auto type = currentType_;
       currentType_ = nullptr;
-      nameMap_.insert(std::make_pair(stmt.decl()->name(), builder_.CreateAlloca(type)));
+      nameMap_.insert(std::make_pair(decl->name(), builder_.CreateAlloca(type)));
     }
     if (stmt.variant()) {
-      builder_.CreateStore(value, nameMap_.at(stmt.variant()->decl()->name()));
+      builder_.CreateStore(value, nameMap_.at(decl->name()));
     }
 
     handleNext(stmt);

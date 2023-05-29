@@ -20,11 +20,13 @@ int main(int argc_, const char **argv_) {
   scriptlang::DiagnosticsEngine engine{sourceMgr};
 
   const char *source = R"(
-    let t1 = 1;
+    const t1 = 1;
     {
+      t1 = 2;
       let t2 = 2;
-      let v = -t2 + t2;
+      let v = -t1 + t2;
     }
+    let t2 = 2;
   )";
   sourceMgr.AddNewSourceBuffer(llvm::MemoryBuffer::getMemBuffer(source), llvm::SMLoc{});
 

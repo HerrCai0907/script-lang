@@ -172,8 +172,10 @@ private:
 
 class Decl : public HIR {
 public:
-  Decl(llvm::StringRef name, std::shared_ptr<Type> type, llvm::SMLoc typeDeclarationLoc)
-      : name_(name), type_(std::move(type)), typeDeclarationLoc_(typeDeclarationLoc) {
+  Decl(llvm::StringRef name, std::shared_ptr<Type> type, llvm::SMLoc startLoc,
+       llvm::SMLoc typeDeclarationLoc)
+      : name_(name), type_(std::move(type)), startLoc_(startLoc),
+        typeDeclarationLoc_(typeDeclarationLoc) {
     assert(type_ != nullptr);
   }
   void accept(Visitor &V) override { V.visit(*this); }
@@ -184,11 +186,13 @@ public:
   std::shared_ptr<Type> type() const { return type_; }
 
   llvm::SMLoc const &getTypeDeclarationLoc() const { return typeDeclarationLoc_; }
+  llvm::SMLoc const &getStartLoc() const { return startLoc_; }
 
 private:
   llvm::SmallString<16U> name_;
   std::shared_ptr<Type> type_;
 
+  llvm::SMLoc startLoc_;
   llvm::SMLoc typeDeclarationLoc_;
 
   bool isConst_;
@@ -228,13 +232,13 @@ private:
 };
 class Variant : public Value {
 public:
-  Variant(Decl *decl) : Value(decl->type()), decl_(decl) {}
+  Variant(std::shared_ptr<Decl> decl) : Value(decl->type()), decl_(decl) {}
   void accept(Visitor &V) override { V.visit(*this); }
 
-  Decl *decl() const { return decl_; }
+  std::shared_ptr<Decl> const &decl() const { return decl_; }
 
 private:
-  Decl *decl_;
+  std::shared_ptr<Decl> decl_;
 };
 class PrefixResult : public Value {
 public:
@@ -293,7 +297,11 @@ public:
     next->prev_ = this;
   }
   std::shared_ptr<Statement> next() const { return next_; }
-  Statement *prev() const { return prev_; }
+  Statement *getPrev() const { return prev_; }
+  void setPrev(Statement *prev) {
+    assert(prev_ == nullptr && "Statement already has prev statement");
+    prev_ = prev;
+  }
 
 protected:
   std::shared_ptr<Statement> next_;
@@ -301,23 +309,22 @@ protected:
 };
 class AssignStatement : public Statement {
 public:
-  AssignStatement(std::shared_ptr<Decl> decl, std::shared_ptr<Variant> variant,
-                  std::shared_ptr<Value> value)
-      : Statement(), decl_(decl), variant_(variant), value_(value) {}
+  AssignStatement(std::shared_ptr<Variant> variant, std::shared_ptr<Value> value, bool isDecl)
+      : Statement(), variant_(variant), value_(value), isDecl_(isDecl) {}
   void accept(Visitor &V) override { V.visit(*this); }
 
-  std::shared_ptr<Decl> decl() const { return decl_; }
   std::shared_ptr<Variant> variant() const { return variant_; }
   std::shared_ptr<Value> value() const { return value_; }
+  bool isDecl() { return isDecl_; }
 
 private:
-  std::shared_ptr<Decl> decl_;       // maybe nullptr
   std::shared_ptr<Variant> variant_; // maybe nullptr
   std::shared_ptr<Value> value_;
+  bool isDecl_;
 };
 class LoopStatement : public Statement {
 public:
-  LoopStatement(std::shared_ptr<Statement> body) : Statement(), body_(body) {}
+  LoopStatement(std::shared_ptr<Statement> body);
   void accept(Visitor &V) override { V.visit(*this); }
 
   std::shared_ptr<Statement> body() const { return body_; }
@@ -349,7 +356,7 @@ private:
 };
 class BlockStatement : public Statement {
 public:
-  BlockStatement(std::shared_ptr<Statement> body) : Statement(), body_(body) {}
+  BlockStatement(std::shared_ptr<Statement> body);
   void accept(Visitor &V) override { V.visit(*this); }
 
   std::shared_ptr<Statement> body() const { return body_; }
@@ -360,9 +367,7 @@ private:
 class BranchStatement : public Statement {
 public:
   BranchStatement(std::shared_ptr<Value> condition, std::shared_ptr<Statement> thenStatement,
-                  std::shared_ptr<Statement> elseStatement)
-      : Statement(), condition_(condition), thenStatement_(thenStatement),
-        elseStatement_(elseStatement) {}
+                  std::shared_ptr<Statement> elseStatement);
   void accept(Visitor &V) override { V.visit(*this); }
 
   std::shared_ptr<Value> condition() const { return condition_; }
