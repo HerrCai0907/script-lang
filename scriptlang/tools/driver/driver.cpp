@@ -20,11 +20,9 @@ int main(int argc_, const char **argv_) {
   scriptlang::DiagnosticsEngine engine{sourceMgr};
 
   const char *source = R"(
-    const t1 = 1;
     {
-      t1 = 2;
-      let t2 = 2;
-      let v = -t1 + t2;
+      const t2 = 2;
+      let v = t2 + t2;
     }
     let t2 = 2;
   )";
@@ -46,10 +44,11 @@ int main(int argc_, const char **argv_) {
     llvm::errs() << "sematic analysis error\n";
     return 1;
   }
-  assert(semaResult);
+  assert(semaResult.first);
+  assert(semaResult.second);
 
   scriptlang::CodeGen codeGen{};
-  codeGen.compile(semaResult);
+  codeGen.compile(semaResult.first, semaResult.second);
 
   return 0;
 }

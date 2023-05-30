@@ -9,7 +9,7 @@ class CodeGenImpl;
 
 class CodeGen {
 public:
-  void compile(std::shared_ptr<hir::Statement> statement);
+  void compile(std::shared_ptr<hir::Statement> statement, std::shared_ptr<TypeSystem> typeSystem);
 
 private:
   std::shared_ptr<CodeGenImpl> impl_;

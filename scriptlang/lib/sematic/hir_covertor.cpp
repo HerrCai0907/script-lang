@@ -77,7 +77,7 @@ void HIRConverter::visit(ast::DeclStmt &stmt) {
     return stmtResult_.reset();
   }
   stmtResult_.reset(new hir::AssignStatement(std::shared_ptr<hir::Variant>(new hir::Variant(decl)),
-                                             init, /*isDecl*/ false));
+                                             init, /*isDecl*/ true));
 }
 void HIRConverter::visit(ast::ExprStmt &stmt) {
   stmt.expr()->accept(*this);

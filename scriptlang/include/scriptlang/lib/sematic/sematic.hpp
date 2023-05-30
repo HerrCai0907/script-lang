@@ -12,7 +12,7 @@ public:
   class Impl;
 
   explicit Sema(DiagnosticsEngine &diag);
-  std::shared_ptr<hir::Statement>
+  std::pair<std::shared_ptr<hir::Statement>, std::shared_ptr<TypeSystem>>
   sematic(llvm::SmallVectorImpl<std::shared_ptr<ast::TopDecls>> &tops);
 
 private:

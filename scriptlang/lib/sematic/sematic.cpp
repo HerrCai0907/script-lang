@@ -10,25 +10,24 @@ class Sema::Impl {
 public:
   Impl(DiagnosticsEngine &diag) : diag_(diag) {}
 
-  std::shared_ptr<hir::Statement>
+  std::pair<std::shared_ptr<hir::Statement>, std::shared_ptr<TypeSystem>>
   sematic(llvm::SmallVectorImpl<std::shared_ptr<ast::TopDecls>> &tops) {
-    TypeSystem typeSystems{diag_};
+    std::shared_ptr<TypeSystem> typeSystems{new TypeSystem(diag_)};
     for (auto top : tops)
-      typeSystems.visit(*top);
+      typeSystems->visit(*top);
     if (diag_.numError() > 0)
-      return nullptr;
+      return {nullptr, nullptr};
 
-    HIRConverter hirConverter{diag_, typeSystems};
+    HIRConverter hirConverter{diag_, *typeSystems};
     auto hir = hirConverter.visitAll(tops);
     if (diag_.numError() > 0)
-      return nullptr;
+      return {nullptr, nullptr};
 
     PendingResolvedTypeChecker typeChecker{diag_};
     hir->accept(typeChecker);
     if (diag_.numError() > 0)
-      return nullptr;
-
-    return hir;
+      return {nullptr, nullptr};
+    return {hir, typeSystems};
   }
 
 private:
@@ -36,7 +35,7 @@ private:
 };
 
 Sema::Sema(DiagnosticsEngine &diag) : impl_(new Impl(diag)) {}
-std::shared_ptr<hir::Statement>
+std::pair<std::shared_ptr<hir::Statement>, std::shared_ptr<TypeSystem>>
 Sema::sematic(llvm::SmallVectorImpl<std::shared_ptr<ast::TopDecls>> &tops) {
   return impl_->sematic(tops);
 }

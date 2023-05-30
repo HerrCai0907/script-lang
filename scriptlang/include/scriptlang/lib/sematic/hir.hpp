@@ -14,7 +14,8 @@
 
 namespace scriptlang {
 class TypeSystem;
-}
+class PendingResolvedTypeChecker;
+} // namespace scriptlang
 
 namespace scriptlang::hir {
 
@@ -196,6 +197,8 @@ private:
   llvm::SMLoc typeDeclarationLoc_;
 
   bool isConst_;
+
+  friend class ::scriptlang::PendingResolvedTypeChecker;
 };
 
 class Value : public HIR {
@@ -208,6 +211,8 @@ public:
 
 protected:
   std::shared_ptr<Type> type_;
+
+  friend class ::scriptlang::PendingResolvedTypeChecker;
 };
 class IntegerLiteral : public Value {
 public:

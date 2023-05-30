@@ -1,5 +1,6 @@
 #include "scriptlang/lib/codegen/codegen.hpp"
 #include "scriptlang/lib/sematic/hir.hpp"
+#include "scriptlang/lib/sematic/type_system.hpp"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/IR/BasicBlock.h"
@@ -12,15 +13,17 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/ErrorHandling.h"
 #include <cassert>
+#include <memory>
 
 namespace scriptlang {
 
 class ToIRVisitor : public hir::Visitor {
 public:
-  explicit ToIRVisitor(llvm::Module *m)
-      : module_(m), builder_(m->getContext()), currentType_(nullptr), currentValue_(nullptr) {
+  ToIRVisitor(llvm::Module *m, TypeSystem *typeSystem)
+      : typeSystem_(typeSystem), module_(m), builder_(m->getContext()), currentType_(nullptr),
+        currentValue_(nullptr) {
     voidTy_ = llvm::Type::getVoidTy(m->getContext());
     int1Ty_ = llvm::Type::getInt1Ty(m->getContext());
     int8Ty_ = llvm::Type::getInt8Ty(m->getContext());
@@ -44,47 +47,67 @@ public:
     stmt->accept(*this);
   }
 
-  // void visit(hir::FuncType &type) override {}
+  void visit(hir::FuncType &type) override { llvm_unreachable("TODO"); }
   void visit(hir::NamedType &type) override {
     currentType_ = llvm::StringSwitch<llvm::Type *>{type.name()}
                        .Case("bool", int1Ty_)
-                       .Case("i32", int32Ty_)
-                       .Case("i64", llvm::Type::getInt64Ty(module_->getContext()))
+                       .Cases("i8", "u8", int8Ty_)
+                       .Cases("i16", "u16", llvm::Type::getInt16Ty(module_->getContext()))
+                       .Cases("i32", "u32", int32Ty_)
+                       .Cases("i64", "u64", llvm::Type::getInt64Ty(module_->getContext()))
                        .Case("f32", llvm::Type::getFloatTy(module_->getContext()))
                        .Case("f64", llvm::Type::getDoubleTy(module_->getContext()))
                        .Default(nullptr);
   }
-  void visit(hir::PendingResolvedType &type) override { type.resolve()->accept(*this); }
+  void visit(hir::PendingResolvedType &type) override { llvm_unreachable(""); }
 
-  // void visit(hir::Value &value) override {}
   void visit(hir::IntegerLiteral &value) override {
     value.type()->accept(*this);
-    if (!currentType_)
-      return;
     auto type = currentType_;
-    currentType_ = nullptr;
-    currentValue_ = llvm::ConstantInt::get(type, value.value(), true);
+    currentValue_ =
+        llvm::ConstantInt::get(type, value.value(), typeSystem_->isSigned(value.type()));
   }
-  // void visit(hir::FloatLiteral &value) override {}
+  void visit(hir::FloatLiteral &value) override {
+    value.type()->accept(*this);
+    auto type = currentType_;
+    currentValue_ = llvm::ConstantFP::get(type, value.value());
+  }
   void visit(hir::Variant &value) override {
     assert(nameMap_.contains(value.decl()->name()));
     value.type()->accept(*this);
-    if (!currentType_)
-      return;
     auto type = currentType_;
-    currentType_ = nullptr;
     currentValue_ = builder_.CreateLoad(type, nameMap_.at(value.decl()->name()));
   }
-  // void visit(hir::PrefixResult &value) override {}
+  void visit(hir::PrefixResult &value) override {
+    value.operand()->accept(*this);
+    assert(currentValue_);
+    llvm::Value *operand = currentValue_;
+    switch (value.getOp()) {
+    case hir::PrefixResult::Op::Not:
+      currentValue_ = builder_.CreateNot(operand);
+      break;
+    case hir::PrefixResult::Op::Minus:
+      llvm::Value *lhs;
+      if (typeSystem_->isSigned(value.operand()->type())) {
+        lhs = llvm::ConstantInt::get(operand->getType(), 0, true);
+      } else if (typeSystem_->isUnsigned(value.operand()->type())) {
+        lhs = llvm::ConstantInt::get(operand->getType(), 0, false);
+      } else if (typeSystem_->isFloat(value.operand()->type())) {
+        lhs = llvm::ConstantFP::get(operand->getType(), 0.0);
+      } else {
+        llvm_unreachable("");
+      }
+      currentValue_ = builder_.CreateSub(lhs, operand);
+      break;
+    }
+  }
   void visit(hir::BinaryResult &value) override {
     value.lhs()->accept(*this);
-    if (!currentValue_)
-      return;
+    assert(currentValue_);
     llvm::Value *lhs = currentValue_;
     currentValue_ = nullptr;
     value.rhs()->accept(*this);
-    if (!currentValue_)
-      return;
+    assert(currentValue_);
     llvm::Value *rhs = currentValue_;
     currentValue_ = nullptr;
     switch (value.op()) {
@@ -144,7 +167,7 @@ public:
       break;
     }
   }
-  // void visit(hir::CallResult &value) override {}
+  void visit(hir::CallResult &value) override { llvm_unreachable("TODO"); }
 
   void visit(hir::AssignStatement &stmt) override {
     stmt.value()->accept(*this);
@@ -176,7 +199,7 @@ public:
     builder_.SetInsertPoint(loopEndBlock);
     handleNext(stmt);
   }
-  // void visit(hir::JumpStatement &stmt) override {}
+  void visit(hir::JumpStatement &stmt) override { llvm_unreachable("TODO"); }
   void visit(hir::ReturnStatement &stmt) override {
     stmt.value()->accept(*this);
     if (!currentValue_)
@@ -215,6 +238,8 @@ public:
   }
 
 private:
+  TypeSystem *typeSystem_;
+
   llvm::Module *module_;
 
   llvm::Type *voidTy_;
@@ -222,6 +247,7 @@ private:
   llvm::Type *int8Ty_;
   llvm::Type *int32Ty_;
   llvm::Type *int8PtrTy_;
+
   llvm::Constant *int1Zero;
   llvm::Constant *int32Zero_;
 
@@ -241,15 +267,18 @@ private:
 
 class CodeGenImpl {
 public:
-  void compile(std::shared_ptr<hir::Statement> statement) {
+  void compile(std::shared_ptr<hir::Statement> statement, std::shared_ptr<TypeSystem> typeSystem) {
     llvm::LLVMContext ctx;
     std::unique_ptr<llvm::Module> m{new llvm::Module("demo", ctx)};
-    ToIRVisitor visitor{m.get()};
+    ToIRVisitor visitor{m.get(), typeSystem.get()};
     visitor.run(statement.get());
     m->print(llvm::outs(), nullptr);
   }
 };
 
-void CodeGen::compile(std::shared_ptr<hir::Statement> statement) { impl_->compile(statement); }
+void CodeGen::compile(std::shared_ptr<hir::Statement> statement,
+                      std::shared_ptr<TypeSystem> typeSystem) {
+  impl_->compile(statement, typeSystem);
+}
 
 } // namespace scriptlang

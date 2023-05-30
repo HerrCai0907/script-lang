@@ -12,8 +12,16 @@ void PendingResolvedTypeChecker::visit(hir::Decl &decl) {
     } else if (!pendingResolvedType->canBeResolved()) {
       diag_.report(decl.getTypeDeclarationLoc(), Diag::expect_type_declaration_with_options,
                    pendingResolvedType->toString());
+    } else {
+      decl.type_ = pendingResolvedType->resolve();
     }
   }
+}
+
+void PendingResolvedTypeChecker::visit(hir::Value &value) {
+  auto pendingResolvedType = std::dynamic_pointer_cast<hir::PendingResolvedType>(value.type());
+  if (pendingResolvedType)
+    value.type_ = pendingResolvedType->resolve();
 }
 
 } // namespace scriptlang

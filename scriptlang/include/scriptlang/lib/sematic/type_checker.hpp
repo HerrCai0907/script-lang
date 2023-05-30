@@ -10,6 +10,7 @@ class PendingResolvedTypeChecker : public hir::Visitor {
 public:
   PendingResolvedTypeChecker(DiagnosticsEngine &diag) : diag_(diag) {}
   void visit(hir::Decl &decl) override;
+  void visit(hir::Value &value) override;
 
 private:
   DiagnosticsEngine &diag_;
