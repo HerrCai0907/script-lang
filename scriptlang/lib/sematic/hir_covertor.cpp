@@ -51,6 +51,7 @@ void HIRConverter::visit(ast::AssignStmt &stmt) {
     diag_.report(decl->getStartLoc(), Diag::define_const_variable_here, decl->name());
     return stmtResult_.reset();
   }
+  // TODO: type check
   stmtResult_.reset(new hir::AssignStatement(variant, value, /*isDecl*/ false));
 }
 void HIRConverter::visit(ast::BreakStmt &) {
@@ -123,12 +124,25 @@ void HIRConverter::visit(ast::IfStmt &stmt) {
 void HIRConverter::visit(ast::ImportStmt &stmt) {
   // TODO
 }
+
 void HIRConverter::visit(ast::ReturnStmt &stmt) {
   std::shared_ptr<hir::Value> returnValue{nullptr};
   if (stmt.value()) {
     stmt.value()->accept(*this);
     returnValue = exprResult_;
   }
+  if (currentReturnType_.type == nullptr) {
+    // global scope
+    diag_.report(stmt.start(), Diag::invalid_return);
+    stmtResult_ = nullptr;
+    return;
+  }
+
+  auto type = returnValue != nullptr ? returnValue->type() : typeSystem_.voidTy();
+  typeSystem_.mergePendingResolvedType(TypeSystem::MergeKind::ReturnValue, currentReturnType_.type,
+                                       type);
+  currentReturnType_.hasReturn = true;
+
   stmtResult_.reset(new hir::ReturnStatement(returnValue));
 }
 void HIRConverter::visit(ast::WhileStmt &stmt) {
@@ -260,7 +274,49 @@ void HIRConverter::visit(ast::CallExpr &expr) {
   }
   exprResult_.reset(new hir::CallResult(funcType->returnType(), func, arguments));
 }
-void HIRConverter::visit(ast::FuncExpr &expr) {}
+void HIRConverter::visit(ast::FuncExpr &expr) {
+  hir::FuncValue::ArgumentVec args{};
+  hir::FuncValue::ArgumentTypeVec types{};
+  for (auto const &argType : expr.argumentTypes()) {
+    std::shared_ptr<hir::Type> type;
+    if (argType != nullptr)
+      type = handTypeNode(argType);
+    else
+      type = typeSystem_.createAnyType();
+    types.push_back(type);
+  }
+  for (auto const &arg : expr.arguments()) {
+    args.push_back(arg->name());
+  }
+
+  declarationMgr_.enterScope();
+  auto lastReturnType = currentReturnType_;
+  currentReturnType_ = CurrentReturnType{typeSystem_.createAnyType()};
+
+  for (size_t i = 0; i < expr.arguments().size(); ++i) {
+    auto const &arg = expr.arguments()[i];
+    declarationMgr_.addDecl(std::shared_ptr<hir::Decl>{
+        new hir::Decl(arg->name(), types[i], arg->start(), arg->range().End)});
+  }
+  expr.stmt()->accept(*this);
+  auto body = std::dynamic_pointer_cast<hir::BlockStatement>(stmtResult_);
+
+  auto pendingReturnType = currentReturnType_;
+  currentReturnType_ = lastReturnType;
+  declarationMgr_.exitScope();
+
+  for (size_t i = 0; i < types.size(); i++) {
+    auto pendingType = std::dynamic_pointer_cast<hir::PendingResolvedType>(types[i]);
+    if (pendingType)
+      types[i] = pendingType->tryResolve();
+  }
+
+  std::shared_ptr<hir::Type> returnType =
+      pendingReturnType.hasReturn ? pendingReturnType.type->tryResolve() : typeSystem_.voidTy();
+
+  exprResult_.reset(new hir::FuncValue(typeSystem_.createFuncType(types, returnType), body));
+  return;
+}
 void HIRConverter::visit(ast::Identifier &expr) {
   if (expr.name() == "true") {
     exprResult_.reset(new hir::IntegerLiteral(typeSystem_.boolTy(), 1));

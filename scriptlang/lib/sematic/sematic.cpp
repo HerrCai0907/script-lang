@@ -24,7 +24,8 @@ public:
       return {nullptr, nullptr};
 
     PendingResolvedTypeChecker typeChecker{diag_};
-    hir->accept(typeChecker);
+    typeChecker.resolve(hir);
+
     if (diag_.numError() > 0)
       return {nullptr, nullptr};
     return {hir, typeSystems};

@@ -8,6 +8,7 @@ namespace scriptlang {
 TypeSystem::TypeSystem(DiagnosticsEngine &diag)
     : diag_(diag), namedTypes_(), funcTypes_(), pendingResolvedTypes_(),
       pendingResolvedCallbacks_() {
+  voidTy_ = std::shared_ptr<hir::NamedType>(new hir::NamedType(llvm::StringRef("void")));
   boolTy_ = std::shared_ptr<hir::NamedType>(new hir::NamedType(llvm::StringRef("bool")));
   i8Ty_ = std::shared_ptr<hir::NamedType>(new hir::NamedType(llvm::StringRef("i8")));
   i16Ty_ = std::shared_ptr<hir::NamedType>(new hir::NamedType(llvm::StringRef("i16")));
@@ -19,6 +20,7 @@ TypeSystem::TypeSystem(DiagnosticsEngine &diag)
   u64Ty_ = std::shared_ptr<hir::NamedType>(new hir::NamedType(llvm::StringRef("u64")));
   f32Ty_ = std::shared_ptr<hir::NamedType>(new hir::NamedType(llvm::StringRef("f32")));
   f64Ty_ = std::shared_ptr<hir::NamedType>(new hir::NamedType(llvm::StringRef("f64")));
+  addNamedType(voidTy_);
   addNamedType(boolTy_);
   addNamedType(i8Ty_);
   addNamedType(i16Ty_);
@@ -96,12 +98,21 @@ TypeSystem::createPendingResolvedTypeFromInteger(int64_t num) {
   pendingResolvedTypes_.push_back(type);
   return type;
 }
+std::shared_ptr<hir::PendingResolvedType> TypeSystem::createAnyType() {
+  auto type = std::shared_ptr<hir::PendingResolvedType>{
+      new hir::PendingResolvedType(hir::PendingResolvedType::AnyType{})};
+  pendingResolvedTypes_.push_back(type);
+  return type;
+}
 
 std::shared_ptr<hir::Type> TypeSystem::mergePendingResolvedType(MergeKind kind,
                                                                 std::shared_ptr<hir::Type> lhs,
                                                                 std::shared_ptr<hir::Type> rhs) {
   std::function<bool(const std::shared_ptr<hir::Type> &)> condition;
   switch (kind) {
+  case MergeKind::ReturnValue:
+    condition = [](const std::shared_ptr<hir::Type> &type) { return true; };
+    break;
   case MergeKind::BinaryArithmetic:
   case MergeKind::BinaryCompare:
     condition = [this](const std::shared_ptr<hir::Type> &type) -> bool { return isNumber(type); };

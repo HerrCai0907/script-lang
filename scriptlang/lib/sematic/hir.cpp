@@ -39,7 +39,10 @@ void Visitor::visit(Decl &decl) { decl.type()->accept(*this); }
 void Visitor::visit(Value &value) { value.type()->accept(*this); }
 void Visitor::visit(IntegerLiteral &value) { visit(static_cast<Value &>(value)); }
 void Visitor::visit(FloatLiteral &value) { visit(static_cast<Value &>(value)); }
-void Visitor::visit(Variant &value) { visit(static_cast<Value &>(value)); }
+void Visitor::visit(Variant &value) {
+  visit(static_cast<Value &>(value));
+  value.decl()->accept(*this);
+}
 void Visitor::visit(PrefixResult &value) {
   visit(static_cast<Value &>(value));
   value.operand()->accept(*this);
@@ -55,6 +58,11 @@ void Visitor::visit(CallResult &value) {
   for (auto const &argument : value.arguments()) {
     argument->accept(*this);
   }
+}
+void Visitor::visit(FuncValue &value) {
+  visit(static_cast<Value &>(value));
+  if (value.getBody())
+    value.getBody()->accept(*this);
 }
 
 void Visitor::visit(Statement &stmt) {
@@ -93,6 +101,22 @@ void Visitor::visit(BranchStatement &stmt) {
 void HIR::dump() {
   class Printer : public Visitor, public PrinterBase {
   public:
+    void visit(Type &type) override {
+      llvm::errs() << space() << static_cast<void *>(&type) << " " << type.toString() << "\n";
+    }
+    void visit(FuncType &type) override {
+      llvm::errs() << space() << "FuncType " << static_cast<void *>(&type) << " " << type.toString()
+                   << "\n";
+    }
+    void visit(NamedType &type) override {
+      llvm::errs() << space() << "NamedType " << static_cast<void *>(&type) << " "
+                   << type.toString() << "\n";
+    }
+    void visit(PendingResolvedType &type) override {
+      llvm::errs() << space() << "PendingResolvedType " << static_cast<void *>(&type) << " "
+                   << type.toString() << "\n";
+    }
+
     void visit(Decl &decl) override {
       llvm::errs() << space() << "Decl " << decl.name() << ": " << decl.type()->toString() << "\n";
     }
@@ -120,6 +144,11 @@ void HIR::dump() {
     }
     void visit(CallResult &value) override {
       llvm::errs() << space() << "CallResult\n";
+      RttiIndent indent{this};
+      Visitor::visit(value);
+    }
+    void visit(FuncValue &value) override {
+      llvm::errs() << space() << "FuncValue\n";
       RttiIndent indent{this};
       Visitor::visit(value);
     }

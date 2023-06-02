@@ -34,6 +34,7 @@ class TypeSystem : public ast::Visitor {
 public:
   explicit TypeSystem(DiagnosticsEngine &diag);
 
+  std::shared_ptr<hir::NamedType> const &voidTy() const { return voidTy_; }
   std::shared_ptr<hir::NamedType> const &boolTy() const { return boolTy_; }
   std::shared_ptr<hir::NamedType> const &i8Ty() const { return i8Ty_; }
   std::shared_ptr<hir::NamedType> const &i16Ty() const { return i16Ty_; }
@@ -64,10 +65,11 @@ public:
 
   std::shared_ptr<hir::PendingResolvedType> createPendingResolvedTypeFromInteger(uint64_t num);
   std::shared_ptr<hir::PendingResolvedType> createPendingResolvedTypeFromInteger(int64_t num);
+  std::shared_ptr<hir::PendingResolvedType> createAnyType();
 
   std::shared_ptr<hir::NamedType> getTypeByName(llvm::StringRef name) const;
 
-  enum class MergeKind { BinaryArithmetic, BinaryCompare, BinaryLogic };
+  enum class MergeKind { BinaryArithmetic, BinaryCompare, BinaryLogic, ReturnValue };
   std::shared_ptr<hir::Type> mergePendingResolvedType(MergeKind kind,
                                                       std::shared_ptr<hir::Type> lhs,
                                                       std::shared_ptr<hir::Type> rhs);
@@ -84,6 +86,7 @@ private:
   PendingResolvedTypeList pendingResolvedTypes_;
   std::list<hir::PendingResolvedType::OnChangeCallback> pendingResolvedCallbacks_;
 
+  std::shared_ptr<hir::NamedType> voidTy_;
   std::shared_ptr<hir::NamedType> boolTy_;
   std::shared_ptr<hir::NamedType> i8Ty_;
   std::shared_ptr<hir::NamedType> i16Ty_;

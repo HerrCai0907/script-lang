@@ -35,6 +35,7 @@ class Variant;
 class PrefixResult;
 class BinaryResult;
 class CallResult;
+class FuncValue;
 
 class Statement;
 class AssignStatement;
@@ -62,6 +63,7 @@ public:
   virtual void visit(PrefixResult &value);
   virtual void visit(BinaryResult &value);
   virtual void visit(CallResult &value);
+  virtual void visit(FuncValue &value);
 
   virtual void visit(Statement &stmt);
   virtual void visit(AssignStatement &stmt);
@@ -111,13 +113,19 @@ private:
 };
 class PendingResolvedType : public Type, public std::enable_shared_from_this<PendingResolvedType> {
 public:
+  class AnyType {};
   using TypeCandidates = std::set<std::shared_ptr<Type>>;
   enum class CallBackStatus { Resolved, Pending };
   using OnChangeCallback = std::function<void()>;
+  PendingResolvedType(PendingResolvedType const &) = delete;
+  PendingResolvedType &operator=(PendingResolvedType const &) = delete;
+
   TypeCandidates const &candidates() const { return candidates_; }
   std::string toString() const override;
+  void accept(Visitor &V) override { V.visit(*this); }
 
-  bool isInvalid() const { return candidates_.size() == 0; }
+  bool isAny() const { return anyType_; }
+  bool isInvalid() const { return candidates_.size() == 0 && anyType_ == false; }
   bool canBeResolved() const { return candidates_.size() == 1; }
 
   std::shared_ptr<Type> const &getDefaultType() const { return defaultType_; }
@@ -139,16 +147,20 @@ public:
   void clearOnChangeCallback() { onChangeCallbacks_.clear(); }
 
 private:
+  bool anyType_;
   TypeCandidates candidates_;
   std::list<OnChangeCallback> onChangeCallbacks_;
   std::shared_ptr<Type> defaultType_;
 
   explicit PendingResolvedType(TypeCandidates candidates)
-      : candidates_(candidates), onChangeCallbacks_(), defaultType_(nullptr) {}
+      : anyType_(false), candidates_(candidates), onChangeCallbacks_(), defaultType_(nullptr) {}
+  explicit PendingResolvedType(AnyType)
+      : anyType_(true), candidates_(), onChangeCallbacks_(), defaultType_(nullptr) {}
   bool equal(Type const &type) const override { return false; }
   void appendOnChangeToList(std::list<OnChangeCallback> &onChanges);
 
   friend class ::scriptlang::TypeSystem;
+  friend class ::scriptlang::PendingResolvedTypeChecker;
 };
 class FuncType : public Type {
 public:
@@ -169,6 +181,7 @@ private:
   bool equal(Type const &type) const override;
 
   friend class ::scriptlang::TypeSystem;
+  friend class ::scriptlang::PendingResolvedTypeChecker;
 };
 
 class Decl : public HIR {
@@ -288,6 +301,19 @@ public:
 private:
   std::shared_ptr<Value> func_;
   ArgumentVec arguments_;
+};
+class FuncValue : public Value {
+public:
+  using ArgumentVec = llvm::SmallVector<std::string, 4U>;
+  using ArgumentTypeVec = llvm::SmallVector<std::shared_ptr<Type>, 4U>;
+  FuncValue(std::shared_ptr<Type> type, std::shared_ptr<BlockStatement> body)
+      : Value(type), body_(body) {}
+  void accept(Visitor &V) override { V.visit(*this); }
+
+  auto const &getBody() const { return body_; }
+
+private:
+  std::shared_ptr<BlockStatement> body_;
 };
 
 class Statement : public HIR {

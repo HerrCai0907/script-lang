@@ -11,5 +11,6 @@ DIAG(expect_type_declaration_with_options, Error, "Expect type declaration, it c
 DIAG(nonassignable_expression, Error, "Expression is not assignable")
 DIAG(assign_to_const, Error, "Cannot assign to const variable '{0}'")
 DIAG(define_const_variable_here, Note, "Variable '{0}' declared const here")
+DIAG(invalid_return, Error, "A 'return' statement can only be used within a function body.")
 
 #undef DIAG

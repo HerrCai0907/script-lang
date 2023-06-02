@@ -55,6 +55,14 @@ private:
 
   std::shared_ptr<hir::Value> exprResult_;
   std::shared_ptr<hir::Statement> stmtResult_;
+
+  struct CurrentReturnType {
+    std::shared_ptr<hir::PendingResolvedType> type;
+    bool hasReturn;
+    CurrentReturnType() : type(nullptr), hasReturn(false) {}
+    explicit CurrentReturnType(std::shared_ptr<hir::PendingResolvedType> t)
+        : type(std::move(t)), hasReturn(false) {}
+  } currentReturnType_;
 };
 
 } // namespace scriptlang

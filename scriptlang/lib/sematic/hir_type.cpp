@@ -1,4 +1,5 @@
 #include "scriptlang/lib/sematic/hir.hpp"
+#include "llvm/Support/raw_ostream.h"
 #include <cassert>
 
 namespace scriptlang::hir {
@@ -24,6 +25,8 @@ bool FuncType::equal(Type const &type) const {
 }
 
 std::string PendingResolvedType::toString() const {
+  if (anyType_)
+    return "any";
   std::string ret{};
   size_t candidateSize = candidates_.size();
   for (auto const &candidate : candidates_) {
@@ -93,8 +96,9 @@ bool PendingResolvedType::removeIf(std::function<bool(std::shared_ptr<Type> cons
 /// @return true means PendingResolvedType is still valid
 bool PendingResolvedType::onlyKeepCandidate(std::shared_ptr<Type> const &type,
                                             std::list<OnChangeCallback> &onChanges) {
-  if (candidates_.count(type) == 0)
+  if (candidates_.count(type) == 0 && anyType_ == false)
     return false;
+  anyType_ = false;
   defaultType_ = nullptr;
   if (candidates_.size() == 1)
     return true;
@@ -107,17 +111,28 @@ void PendingResolvedType::intersection(PendingResolvedType &lhs, PendingResolved
                                        std::list<OnChangeCallback> &onChanges) {
   auto lhsSize = lhs.candidates_.size();
   auto rhsSize = rhs.candidates_.size();
-  for (auto it = lhs.candidates_.begin(); it != lhs.candidates_.end();) {
-    if (rhs.candidates_.count(*it) == 0)
-      it = lhs.candidates_.erase(it);
-    else
-      it++;
+  if (lhs.anyType_ && rhs.anyType_) {
+    return;
+  } else if (lhs.anyType_) {
+    lhs.anyType_ = false;
+    lhs.candidates_ = rhs.candidates_;
+  } else if (rhs.anyType_) {
+    rhs.anyType_ = false;
+    rhs.candidates_ = lhs.candidates_;
+  } else {
+    for (auto it = lhs.candidates_.begin(); it != lhs.candidates_.end();) {
+      if (rhs.candidates_.count(*it) == 0)
+        it = lhs.candidates_.erase(it);
+      else
+        it++;
+    }
+    rhs.candidates_ = lhs.candidates_;
   }
-  rhs.candidates_ = lhs.candidates_;
-
-  if (lhs.defaultType_ != nullptr && lhs.candidates_.count(lhs.defaultType_) == 0)
+  if (lhs.anyType_ == false && lhs.defaultType_ != nullptr &&
+      lhs.candidates_.count(lhs.defaultType_) == 0)
     lhs.defaultType_ = nullptr;
-  if (rhs.defaultType_ != nullptr && rhs.candidates_.count(lhs.defaultType_) == 0)
+  if (rhs.anyType_ == false && rhs.defaultType_ != nullptr &&
+      rhs.candidates_.count(rhs.defaultType_) == 0)
     rhs.defaultType_ = nullptr;
 
   if (lhsSize != lhs.candidates_.size())
@@ -127,7 +142,8 @@ void PendingResolvedType::intersection(PendingResolvedType &lhs, PendingResolved
 }
 void PendingResolvedType::applyDefaultType(std::list<OnChangeCallback> &onChanges) {
   if (defaultType_) {
-    assert(candidates_.count(defaultType_) > 0);
+    assert(anyType_ || candidates_.count(defaultType_) > 0);
+    anyType_ = false;
     candidates_.clear();
     candidates_.insert(defaultType_);
     appendOnChangeToList(onChanges);
