@@ -4,6 +4,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Casting.h"
+#include <optional>
 #include <string>
 
 namespace scriptlang {
@@ -170,9 +171,16 @@ void ToIRVisitor::visit(hir::BinaryResult &value) {
   }
 }
 void ToIRVisitor::visit(hir::CallResult &value) { llvm_unreachable("TODO"); }
-void ToIRVisitor::visit(hir::FuncValue &value) {
-  static uint32_t index = 0;
 
+static std::string getFuncName(std::optional<std::string> const &name) {
+  static uint32_t lambdaIndex = 0;
+  if (name.has_value())
+    return name.value();
+  else
+    return "lambda#" + std::to_string(lambdaIndex++);
+}
+
+void ToIRVisitor::visit(hir::FuncValue &value) {
   llvm::Function *lastFn = currentFn_;
   llvm::BasicBlock *lastInsertBB = builder_.GetInsertBlock();
   llvm::BasicBlock::iterator lastInsertPoint = builder_.GetInsertPoint();
@@ -181,7 +189,7 @@ void ToIRVisitor::visit(hir::FuncValue &value) {
   assert(currentType_);
   llvm::FunctionType *fnTy = llvm::cast<llvm::FunctionType>(currentType_);
   llvm::Function *fn = llvm::Function::Create(fnTy, llvm::GlobalValue::ExternalLinkage,
-                                              "lambda#" + std::to_string(index), module_);
+                                              getFuncName(value.getName()), module_);
   llvm::BasicBlock *BB = llvm::BasicBlock::Create(module_->getContext(), "entry", fn);
 
   currentFn_ = fn;
@@ -193,8 +201,6 @@ void ToIRVisitor::visit(hir::FuncValue &value) {
   builder_.SetInsertPoint(lastInsertBB, lastInsertPoint);
 
   currentValue_ = llvm::ConstantExpr::getBitCast(fn, fnTy->getPointerTo());
-
-  index++;
 }
 
 void ToIRVisitor::visit(hir::AssignStatement &stmt) {

@@ -44,3 +44,7 @@ let fn_same_name = () => {
   let c = 4;
   return c;
 };
+
+// CHECK-LABEL: define void @fn_fix_name() {
+// CHECK-NEXT:  entry:
+const fn_fix_name = () => {};

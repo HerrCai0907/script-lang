@@ -65,12 +65,18 @@ void HIRConverter::visit(ast::DeclStmt &stmt) {
   auto init = exprResult_;
   if (init == nullptr)
     return stmtResult_.reset();
+  auto funcValueInit = std::dynamic_pointer_cast<hir::FuncValue>(init);
+  if (stmt.isConst() && funcValueInit != nullptr)
+    funcValueInit->setName(stmt.name());
+
   auto declType = handTypeNode(stmt.type());
   if (declType == nullptr)
     declType = init->type();
+
   std::shared_ptr<hir::Decl> decl{
       new hir::Decl(stmt.name(), declType, stmt.start(), stmt.nameEndLoc())};
   decl->setConst(stmt.isConst());
+
   if (declarationMgr_.addDecl(decl) == false) {
     diag_.report(stmt.start(), Diag::redefined_variable, decl->name());
     diag_.report(declarationMgr_.findDeclByName(decl->name())->getStartLoc(),

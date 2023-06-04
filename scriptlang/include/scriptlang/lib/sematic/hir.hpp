@@ -262,9 +262,13 @@ public:
   void accept(Visitor &V) override { V.visit(*this); }
 
   auto const &getBody() const { return body_; }
+  auto const &getName() { return name_; }
+
+  void setName(llvm::StringRef name) { name_ = name; }
 
 private:
   std::shared_ptr<BlockStatement> body_;
+  std::optional<std::string> name_;
 };
 
 class Statement : public HIR {
