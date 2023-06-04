@@ -127,3 +127,136 @@ entry:
 }
 "
 `;
+
+exports[`if 1`] = `
+"; ModuleID = 'demo'
+source_filename = "demo"
+
+define i32 @main(i32 %0, ptr %1) {
+entry:
+  %base_if = alloca ptr, align 8
+  store ptr @base_if, ptr %base_if, align 8
+  %if_only_then = alloca ptr, align 8
+  store ptr @if_only_then, ptr %if_only_then, align 8
+  %nesting_if = alloca ptr, align 8
+  store ptr @nesting_if, ptr %nesting_if, align 8
+  %elseif = alloca ptr, align 8
+  store ptr @elseif, ptr %elseif, align 8
+}
+
+define void @base_if() {
+entry:
+  %a = alloca i32, align 4
+  store i32 1, ptr %a, align 4
+  %0 = load i32, ptr %a, align 4
+  %1 = icmp eq i32 %0, 2
+  %2 = icmp ne i1 %1, false
+  br i1 %2, label %if.then, label %if.else
+
+if.then:                                          ; preds = %entry
+  store i32 3, ptr %a, align 4
+  br label %if.end
+
+if.else:                                          ; preds = %entry
+  store i32 4, ptr %a, align 4
+  br label %if.end
+
+if.end:                                           ; preds = %if.else, %if.then
+}
+
+define void @if_only_then() {
+entry:
+  %a = alloca i32, align 4
+  store i32 1, ptr %a, align 4
+  %0 = load i32, ptr %a, align 4
+  %1 = icmp eq i32 %0, 2
+  %2 = icmp ne i1 %1, false
+  br i1 %2, label %if.then, label %if.end
+
+if.then:                                          ; preds = %entry
+  store i32 3, ptr %a, align 4
+  br label %if.end
+
+if.end:                                           ; preds = %if.then, %entry
+}
+
+define void @nesting_if() {
+entry:
+  %a = alloca i32, align 4
+  store i32 1, ptr %a, align 4
+  %0 = load i32, ptr %a, align 4
+  %1 = icmp sgt i32 %0, 2
+  %2 = icmp ne i1 %1, false
+  br i1 %2, label %if.then, label %if.else
+
+if.then:                                          ; preds = %entry
+  %3 = load i32, ptr %a, align 4
+  %4 = icmp sgt i32 %3, 3
+  %5 = icmp ne i1 %4, false
+  br i1 %5, label %if.then1, label %if.else2
+
+if.else:                                          ; preds = %entry
+  %6 = load i32, ptr %a, align 4
+  %7 = icmp sgt i32 %6, 6
+  %8 = icmp ne i1 %7, false
+  br i1 %8, label %if.then4, label %if.else5
+
+if.end:                                           ; preds = %if.end6, %if.end3
+
+if.then1:                                         ; preds = %if.then
+  store i32 4, ptr %a, align 4
+  br label %if.end3
+
+if.else2:                                         ; preds = %if.then
+  store i32 5, ptr %a, align 4
+  br label %if.end3
+
+if.end3:                                          ; preds = %if.else2, %if.then1
+  br label %if.end
+
+if.then4:                                         ; preds = %if.else
+  store i32 7, ptr %a, align 4
+  br label %if.end6
+
+if.else5:                                         ; preds = %if.else
+  store i32 8, ptr %a, align 4
+  br label %if.end6
+
+if.end6:                                          ; preds = %if.else5, %if.then4
+  br label %if.end
+}
+
+define void @elseif() {
+entry:
+  %a = alloca i32, align 4
+  store i32 1, ptr %a, align 4
+  %0 = load i32, ptr %a, align 4
+  %1 = icmp sgt i32 %0, 2
+  %2 = icmp ne i1 %1, false
+  br i1 %2, label %if.then, label %if.else
+
+if.then:                                          ; preds = %entry
+  store i32 3, ptr %a, align 4
+  br label %if.end
+
+if.else:                                          ; preds = %entry
+  %3 = load i32, ptr %a, align 4
+  %4 = icmp sgt i32 %3, 4
+  %5 = icmp ne i1 %4, false
+  br i1 %5, label %if.then1, label %if.else2
+
+if.end:                                           ; preds = %if.end3, %if.then
+
+if.then1:                                         ; preds = %if.else
+  store i32 5, ptr %a, align 4
+  br label %if.end3
+
+if.else2:                                         ; preds = %if.else
+  store i32 6, ptr %a, align 4
+  br label %if.end3
+
+if.end3:                                          ; preds = %if.else2, %if.then1
+  br label %if.end
+}
+"
+`;

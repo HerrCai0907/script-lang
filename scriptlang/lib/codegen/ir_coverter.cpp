@@ -286,7 +286,8 @@ void ToIRVisitor::visit(hir::BranchStatement &stmt) {
                        ? llvm::BasicBlock::Create(module_->getContext(), "if.else", currentFn_)
                        : nullptr;
   auto endBlock = llvm::BasicBlock::Create(module_->getContext(), "if.end", currentFn_);
-  builder_.CreateCondBr(builder_.CreateICmpNE(condition, int1Zero), thenBlock, elseBlock);
+  builder_.CreateCondBr(builder_.CreateICmpNE(condition, int1Zero), thenBlock,
+                        stmt.elseStatement() ? elseBlock : endBlock);
 
   builder_.SetInsertPoint(thenBlock);
   stmt.thenStatement()->accept(*this);

@@ -17,7 +17,7 @@ v.forEach((testCase) => {
           expect(stdout).toMatchSnapshot();
           resolved();
         } else {
-          rejected();
+          rejected(stderr);
         }
       });
     });
