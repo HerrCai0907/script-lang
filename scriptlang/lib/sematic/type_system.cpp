@@ -110,7 +110,7 @@ std::shared_ptr<hir::Type> TypeSystem::mergePendingResolvedType(MergeKind kind,
                                                                 std::shared_ptr<hir::Type> rhs) {
   std::function<bool(const std::shared_ptr<hir::Type> &)> condition;
   switch (kind) {
-  case MergeKind::ReturnValue:
+  case MergeKind::Assign:
     condition = [](const std::shared_ptr<hir::Type> &type) { return true; };
     break;
   case MergeKind::BinaryArithmetic:

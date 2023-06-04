@@ -2,6 +2,7 @@
 #include "scriptlang/lib/sematic/type_system.hpp"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 

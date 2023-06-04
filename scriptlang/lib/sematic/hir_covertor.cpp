@@ -145,7 +145,7 @@ void HIRConverter::visit(ast::ReturnStmt &stmt) {
   }
 
   auto type = returnValue != nullptr ? returnValue->type() : typeSystem_.voidTy();
-  typeSystem_.mergePendingResolvedType(TypeSystem::MergeKind::ReturnValue, currentReturnType_.type,
+  typeSystem_.mergePendingResolvedType(TypeSystem::MergeKind::Assign, currentReturnType_.type,
                                        type);
   currentReturnType_.hasReturn = true;
 
@@ -272,7 +272,9 @@ void HIRConverter::visit(ast::CallExpr &expr) {
     argument->accept(*this);
     auto argumentExpr = exprResult_;
     arguments.push_back(argumentExpr);
-    if (*argumentExpr->type() != *funcType->argumentTypes()[i]) {
+    auto mergedType = typeSystem_.mergePendingResolvedType(
+        TypeSystem::MergeKind::Assign, argumentExpr->type(), funcType->argumentTypes()[i]);
+    if (mergedType == nullptr) {
       diag_.report(expr.arguments()[i]->start(), Diag::unexpected_type,
                    funcType->argumentTypes()[i]->toString(), exprResult_->type()->toString());
       return exprResult_.reset();

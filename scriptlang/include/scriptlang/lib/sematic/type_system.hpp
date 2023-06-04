@@ -69,7 +69,7 @@ public:
 
   std::shared_ptr<hir::NamedType> getTypeByName(llvm::StringRef name) const;
 
-  enum class MergeKind { BinaryArithmetic, BinaryCompare, BinaryLogic, ReturnValue };
+  enum class MergeKind { BinaryArithmetic, BinaryCompare, BinaryLogic, Assign };
   std::shared_ptr<hir::Type> mergePendingResolvedType(MergeKind kind,
                                                       std::shared_ptr<hir::Type> lhs,
                                                       std::shared_ptr<hir::Type> rhs);
