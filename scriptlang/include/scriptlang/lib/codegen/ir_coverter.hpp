@@ -1,5 +1,6 @@
 #include "scriptlang/lib/sematic/hir.hpp"
 #include "scriptlang/lib/sematic/type_system.hpp"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
@@ -50,11 +51,11 @@ private:
   llvm::Value *currentValue_;
   llvm::Function *currentFn_;
 
-  llvm::StringMap<llvm::AllocaInst *> nameMap_;
+  llvm::DenseMap<hir::Decl *, llvm::AllocaInst *> declMap_;
 
   void handleNext(hir::Statement &stmt) {
-    if (static_cast<hir::Statement &>(stmt).next())
-      static_cast<hir::Statement &>(stmt).next()->accept(*this);
+    if (stmt.next())
+      stmt.next()->accept(*this);
   }
 };
 

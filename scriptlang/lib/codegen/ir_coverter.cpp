@@ -74,11 +74,11 @@ void ToIRVisitor::visit(hir::FloatLiteral &value) {
   currentValue_ = llvm::ConstantFP::get(type, value.value());
 }
 void ToIRVisitor::visit(hir::Variant &value) {
-  assert(nameMap_.contains(value.decl()->name()));
+  assert(declMap_.contains(value.decl().get()));
   value.type()->accept(*this);
   auto type = currentType_;
-  currentValue_ = builder_.CreateLoad(
-      type, nameMap_.at(value.decl()->name())); // FIXME: how to handle same name
+  currentValue_ =
+      builder_.CreateLoad(type, declMap_.at(value.decl().get())); // FIXME: how to handle same name
 }
 void ToIRVisitor::visit(hir::PrefixResult &value) {
   value.operand()->accept(*this);
@@ -211,10 +211,10 @@ void ToIRVisitor::visit(hir::AssignStatement &stmt) {
       type = currentType_->getPointerTo();
     else
       type = currentType_;
-    nameMap_.insert(std::make_pair(decl->name(), builder_.CreateAlloca(type)));
+    declMap_.insert(std::make_pair(decl.get(), builder_.CreateAlloca(type)));
   }
   if (stmt.variant()) {
-    builder_.CreateStore(value, nameMap_.at(decl->name()));
+    builder_.CreateStore(value, declMap_.at(decl.get()));
   }
 
   handleNext(stmt);
