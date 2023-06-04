@@ -2,3 +2,5 @@
 
 /build
 /scriptlang/lib/parser/.antlr
+
+/node_modules
