@@ -6,15 +6,15 @@ source_filename = "demo"
 
 define i32 @main(i32 %0, ptr %1) {
 entry:
-  %2 = alloca i32, align 4
-  store i32 3, ptr %2, align 4
-  %3 = alloca i32, align 4
-  store i32 7, ptr %3, align 4
-  %4 = load i32, ptr %2, align 4
-  %5 = load i32, ptr %3, align 4
-  %6 = mul i32 %4, %5
-  %7 = alloca i32, align 4
-  store i32 %6, ptr %7, align 4
+  %add = alloca i32, align 4
+  store i32 3, ptr %add, align 4
+  %dec = alloca i32, align 4
+  store i32 7, ptr %dec, align 4
+  %2 = load i32, ptr %add, align 4
+  %3 = load i32, ptr %dec, align 4
+  %4 = mul i32 %2, %3
+  %mul_result = alloca i32, align 4
+  store i32 %4, ptr %mul_result, align 4
 }
 "
 `;
@@ -25,20 +25,20 @@ source_filename = "demo"
 
 define i32 @main(i32 %0, ptr %1) {
 entry:
-  %2 = alloca ptr, align 8
-  store ptr @called_func, ptr %2, align 8
-  %3 = load ptr, ptr %2, align 8
-  call void %3()
-  %4 = alloca ptr, align 8
-  store ptr @call_ed_func_with_args, ptr %4, align 8
-  %5 = load ptr, ptr %4, align 8
-  call void %5(i32 1)
-  %6 = alloca ptr, align 8
-  store ptr @call_ed_func_with_return, ptr %6, align 8
-  %7 = load ptr, ptr %6, align 8
-  %8 = call i32 %7()
-  %9 = alloca i32, align 4
-  store i32 %8, ptr %9, align 4
+  %called_func = alloca ptr, align 8
+  store ptr @called_func, ptr %called_func, align 8
+  %2 = load ptr, ptr %called_func, align 8
+  call void %2()
+  %call_ed_func_with_args = alloca ptr, align 8
+  store ptr @call_ed_func_with_args, ptr %call_ed_func_with_args, align 8
+  %3 = load ptr, ptr %call_ed_func_with_args, align 8
+  call void %3(i32 1)
+  %call_ed_func_with_return = alloca ptr, align 8
+  store ptr @call_ed_func_with_return, ptr %call_ed_func_with_return, align 8
+  %4 = load ptr, ptr %call_ed_func_with_return, align 8
+  %5 = call i32 %4()
+  %return_value = alloca i32, align 4
+  store i32 %5, ptr %return_value, align 4
 }
 
 define void @called_func() {
@@ -62,16 +62,16 @@ source_filename = "demo"
 
 define i32 @main(i32 %0, ptr %1) {
 entry:
-  %2 = alloca i32, align 4
-  store i32 1, ptr %2, align 4
-  %3 = alloca i32, align 4
-  store i32 2, ptr %3, align 4
-  %4 = alloca i32, align 4
-  store i32 -1, ptr %4, align 4
-  %5 = alloca float, align 4
-  store float 1.000000e+00, ptr %5, align 4
-  %6 = alloca double, align 8
-  store float 2.000000e+00, ptr %6, align 4
+  %num1 = alloca i32, align 4
+  store i32 1, ptr %num1, align 4
+  %num2 = alloca i32, align 4
+  store i32 2, ptr %num2, align 4
+  %num3 = alloca i32, align 4
+  store i32 -1, ptr %num3, align 4
+  %float1 = alloca float, align 4
+  store float 1.000000e+00, ptr %float1, align 4
+  %float2 = alloca double, align 8
+  store float 2.000000e+00, ptr %float2, align 4
 }
 "
 `;
@@ -82,44 +82,44 @@ source_filename = "demo"
 
 define i32 @main(i32 %0, ptr %1) {
 entry:
-  %2 = alloca ptr, align 8
-  store ptr @"lambda#0", ptr %2, align 8
-  %3 = alloca ptr, align 8
-  store ptr @"lambda#1", ptr %3, align 8
-  %4 = alloca ptr, align 8
-  store ptr @"lambda#2", ptr %4, align 8
-  %5 = alloca ptr, align 8
-  store ptr @"lambda#3", ptr %5, align 8
-  %6 = alloca ptr, align 8
-  store ptr @fn_fix_name, ptr %6, align 8
+  %fn_normal = alloca ptr, align 8
+  store ptr @"lambda#0", ptr %fn_normal, align 8
+  %fn_argument = alloca ptr, align 8
+  store ptr @"lambda#1", ptr %fn_argument, align 8
+  %fn_return = alloca ptr, align 8
+  store ptr @"lambda#2", ptr %fn_return, align 8
+  %fn_same_name = alloca ptr, align 8
+  store ptr @"lambda#3", ptr %fn_same_name, align 8
+  %fn_fix_name = alloca ptr, align 8
+  store ptr @fn_fix_name, ptr %fn_fix_name, align 8
 }
 
 define void @"lambda#0"() {
 entry:
-  %0 = alloca i32, align 4
-  store i32 1, ptr %0, align 4
+  %a = alloca i32, align 4
+  store i32 1, ptr %a, align 4
 }
 
 define void @"lambda#1"(i32 %0) {
 entry:
-  %1 = alloca i32, align 4
-  store i32 2, ptr %1, align 4
+  %b = alloca i32, align 4
+  store i32 2, ptr %b, align 4
 }
 
 define i32 @"lambda#2"() {
 entry:
-  %0 = alloca i32, align 4
-  store i32 3, ptr %0, align 4
-  %1 = load i32, ptr %0, align 4
-  ret i32 %1
+  %c = alloca i32, align 4
+  store i32 3, ptr %c, align 4
+  %0 = load i32, ptr %c, align 4
+  ret i32 %0
 }
 
 define i32 @"lambda#3"() {
 entry:
-  %0 = alloca i32, align 4
-  store i32 4, ptr %0, align 4
-  %1 = load i32, ptr %0, align 4
-  ret i32 %1
+  %c = alloca i32, align 4
+  store i32 4, ptr %c, align 4
+  %0 = load i32, ptr %c, align 4
+  ret i32 %0
 }
 
 define void @fn_fix_name() {

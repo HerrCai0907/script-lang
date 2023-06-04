@@ -244,7 +244,7 @@ void ToIRVisitor::visit(hir::AssignStatement &stmt) {
     decl->type()->accept(*this);
     assert(currentType_);
     llvm::Type *type = typeToVariableType(currentType_);
-    declMap_.insert(std::make_pair(decl.get(), builder_.CreateAlloca(type)));
+    declMap_.insert(std::make_pair(decl.get(), builder_.CreateAlloca(type, nullptr, decl->name())));
   }
   if (stmt.variant()) {
     auto decl = stmt.variant()->decl();
