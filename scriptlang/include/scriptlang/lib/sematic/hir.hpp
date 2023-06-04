@@ -19,60 +19,14 @@ class PendingResolvedTypeChecker;
 
 namespace scriptlang::hir {
 
-class HIR;
-
-class Type;
-class FuncType;
-class NamedType;
-class PendingResolvedType;
-
-class Decl;
-
-class Value;
-class IntegerLiteral;
-class FloatLiteral;
-class Variant;
-class PrefixResult;
-class BinaryResult;
-class CallResult;
-class FuncValue;
-
-class Statement;
-class AssignStatement;
-class LoopStatement;
-class JumpStatement;
-class ReturnStatement;
-class BlockStatement;
-class BranchStatement;
+#define HIR_DEF(Name) class Name;
+#include "scriptlang/lib/sematic/hir.inc"
 
 class Visitor {
 public:
-  virtual void visit(HIR &type) {}
-
-  virtual void visit(Type &type) {}
-  virtual void visit(FuncType &type);
-  virtual void visit(NamedType &type) {}
-  virtual void visit(PendingResolvedType &type);
-
-  virtual void visit(Decl &decl);
-
-  virtual void visit(Value &value);
-  virtual void visit(IntegerLiteral &value);
-  virtual void visit(FloatLiteral &value);
-  virtual void visit(Variant &value);
-  virtual void visit(PrefixResult &value);
-  virtual void visit(BinaryResult &value);
-  virtual void visit(CallResult &value);
-  virtual void visit(FuncValue &value);
-
-  virtual void visit(Statement &stmt);
-  virtual void visit(AssignStatement &stmt);
-  virtual void visit(LoopStatement &stmt);
-  virtual void visit(JumpStatement &stmt);
-  virtual void visit(ReturnStatement &stmt);
-  virtual void visit(BlockStatement &stmt);
-  virtual void visit(BranchStatement &stmt);
   virtual ~Visitor() = default;
+#define HIR_DEF(Name) virtual void visit(Name &type);
+#include "scriptlang/lib/sematic/hir.inc"
 };
 
 class HIR {
@@ -86,8 +40,6 @@ class Type : public HIR {
 public:
   Type() {}
   virtual ~Type() = default;
-  void accept(Visitor &V) override { V.visit(*this); }
-
   bool operator==(Type const &type) const { return equal(type); }
   bool operator!=(Type const &type) const { return !(*this == type); }
 
@@ -218,7 +170,6 @@ class Value : public HIR {
 public:
   explicit Value(std::shared_ptr<Type> type) : type_(type) {}
   virtual ~Value() = default;
-  void accept(Visitor &V) override { V.visit(*this); }
 
   std::shared_ptr<Type> type() { return type_; }
 
@@ -320,7 +271,6 @@ class Statement : public HIR {
 public:
   explicit Statement() : next_(nullptr), prev_(nullptr) {}
   virtual ~Statement() = default;
-  void accept(Visitor &V) override { V.visit(*this); }
 
   void setNextStatement(std::shared_ptr<Statement> next) {
     assert(next_ == nullptr && "Statement already has next statement");

@@ -24,6 +24,12 @@ BranchStatement::BranchStatement(std::shared_ptr<Value> condition,
     elseStatement_->setPrev(this);
 }
 
+void Visitor::visit(HIR &) {}
+
+void Visitor::visit(Type &) {}
+
+void Visitor::visit(NamedType &) {}
+
 void Visitor::visit(PendingResolvedType &type) {
   for (auto const &candidate : type.candidates())
     candidate->accept(*this);
