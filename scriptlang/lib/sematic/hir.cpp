@@ -5,7 +5,8 @@
 
 namespace scriptlang::hir {
 
-LoopStatement::LoopStatement(std::shared_ptr<Statement> body) : Statement(), body_(body) {
+LoopStatement::LoopStatement(std::shared_ptr<Statement> body, std::shared_ptr<Statement> inc)
+    : Statement(), body_(body) {
   if (body_)
     body_->setPrev(this);
 }
@@ -82,7 +83,9 @@ void Visitor::visit(AssignStatement &stmt) {
   visit(static_cast<Statement &>(stmt));
 }
 void Visitor::visit(LoopStatement &stmt) {
-  stmt.body()->accept(*this);
+  stmt.getBody()->accept(*this);
+  if (stmt.getInc())
+    stmt.getInc()->accept(*this);
   visit(static_cast<Statement &>(stmt));
 }
 void Visitor::visit(JumpStatement &stmt) { visit(static_cast<Statement &>(stmt)); }
@@ -170,7 +173,7 @@ void HIR::dump() {
       Visitor::visit(stmt);
     }
     void visit(JumpStatement &stmt) override {
-      llvm::errs() << space() << "JumpStatement\n";
+      llvm::errs() << space() << "JumpStatement " << magic_enum::enum_name(stmt.getKind()) << "\n";
       RttiIndent indent{this};
       Visitor::visit(stmt);
     }

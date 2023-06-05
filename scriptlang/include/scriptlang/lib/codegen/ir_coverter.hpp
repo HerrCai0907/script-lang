@@ -1,6 +1,7 @@
 #include "scriptlang/lib/sematic/hir.hpp"
 #include "scriptlang/lib/sematic/type_system.hpp"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
@@ -9,6 +10,14 @@
 namespace scriptlang {
 
 class ToIRVisitor : public hir::Visitor {
+  struct JumpNode {
+    llvm::BasicBlock *continueNode_;
+    llvm::BasicBlock *breakNode_;
+
+    JumpNode(llvm::BasicBlock *continueNode, llvm::BasicBlock *breakNode)
+        : continueNode_(continueNode), breakNode_(breakNode) {}
+  };
+
 public:
   ToIRVisitor(llvm::Module *m, TypeSystem *typeSystem);
 
@@ -53,6 +62,7 @@ private:
   llvm::Function *currentFn_;
 
   llvm::DenseMap<hir::Decl *, llvm::AllocaInst *> declMap_;
+  llvm::DenseMap<hir::LoopStatement *, JumpNode> jumpMap_;
 
   void handleNext(hir::Statement &stmt) {
     if (stmt.next())

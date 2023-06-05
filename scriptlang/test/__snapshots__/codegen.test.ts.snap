@@ -260,3 +260,97 @@ if.end3:                                          ; preds = %if.else2, %if.then1
 }
 "
 `;
+
+exports[`while 1`] = `
+"; ModuleID = 'demo'
+source_filename = "demo"
+
+define i32 @main(i32 %0, ptr %1) {
+entry:
+  %while_base = alloca ptr, align 8
+  store ptr @while_base, ptr %while_base, align 8
+  %while_break = alloca ptr, align 8
+  store ptr @while_break, ptr %while_break, align 8
+  %while_continue = alloca ptr, align 8
+  store ptr @while_continue, ptr %while_continue, align 8
+}
+
+define void @while_base() {
+entry:
+  %a = alloca i32, align 4
+  store i32 1, ptr %a, align 4
+  br label %loop.start
+
+loop.start:                                       ; preds = %if.end, %entry
+  %0 = load i32, ptr %a, align 4
+  %1 = icmp eq i32 %0, 1
+  %2 = icmp ne i1 %1, false
+  br i1 %2, label %if.then, label %if.else
+
+loop.end:                                         ; preds = %if.else
+
+if.then:                                          ; preds = %loop.start
+  store i32 2, ptr %a, align 4
+  br label %if.end
+
+if.else:                                          ; preds = %loop.start
+  br label %loop.end
+  br label %if.end
+
+if.end:                                           ; preds = %if.else, %if.then
+  br label %loop.start
+}
+
+define void @while_break() {
+entry:
+  %a = alloca i32, align 4
+  store i32 1, ptr %a, align 4
+  br label %loop.start
+
+loop.start:                                       ; preds = %if.end, %entry
+  %0 = load i32, ptr %a, align 4
+  %1 = icmp eq i32 %0, 1
+  %2 = icmp ne i1 %1, false
+  br i1 %2, label %if.then, label %if.else
+
+loop.end:                                         ; preds = %if.else, %if.then
+
+if.then:                                          ; preds = %loop.start
+  br label %loop.end
+  br label %if.end
+
+if.else:                                          ; preds = %loop.start
+  br label %loop.end
+  br label %if.end
+
+if.end:                                           ; preds = %if.else, %if.then
+  br label %loop.start
+}
+
+define void @while_continue() {
+entry:
+  %a = alloca i32, align 4
+  store i32 1, ptr %a, align 4
+  br label %loop.start
+
+loop.start:                                       ; preds = %if.end, %entry
+  %0 = load i32, ptr %a, align 4
+  %1 = icmp eq i32 %0, 1
+  %2 = icmp ne i1 %1, false
+  br i1 %2, label %if.then, label %if.else
+
+loop.end:                                         ; preds = %if.else, %if.then
+
+if.then:                                          ; preds = %loop.start
+  br label %loop.end
+  br label %if.end
+
+if.else:                                          ; preds = %loop.start
+  br label %loop.end
+  br label %if.end
+
+if.end:                                           ; preds = %if.else, %if.then
+  br label %loop.start
+}
+"
+`;

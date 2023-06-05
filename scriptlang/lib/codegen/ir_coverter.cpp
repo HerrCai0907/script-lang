@@ -255,15 +255,37 @@ void ToIRVisitor::visit(hir::AssignStatement &stmt) {
 }
 void ToIRVisitor::visit(hir::LoopStatement &stmt) {
   auto loopBlock = llvm::BasicBlock::Create(module_->getContext(), "loop.start", currentFn_);
-  builder_.CreateBr(loopBlock);
-  builder_.SetInsertPoint(loopBlock);
-  stmt.body()->accept(*this);
-  builder_.CreateBr(loopBlock);
   auto loopEndBlock = llvm::BasicBlock::Create(module_->getContext(), "loop.end", currentFn_);
+  auto loopIncBlock = stmt.getInc()
+                          ? llvm::BasicBlock::Create(module_->getContext(), "loop.inc", currentFn_)
+                          : nullptr;
+  jumpMap_.insert(
+      std::make_pair(&stmt, JumpNode{stmt.getInc() ? loopIncBlock : loopEndBlock, loopEndBlock}));
+
+  builder_.CreateBr(loopBlock);
+
+  builder_.SetInsertPoint(loopBlock);
+  stmt.getBody()->accept(*this);
+  if (stmt.getInc()) {
+    builder_.CreateBr(loopIncBlock);
+    builder_.SetInsertPoint(loopIncBlock);
+    stmt.getInc()->accept(*this);
+  }
+  builder_.CreateBr(loopBlock);
+
   builder_.SetInsertPoint(loopEndBlock);
   handleNext(stmt);
 }
-void ToIRVisitor::visit(hir::JumpStatement &stmt) { llvm_unreachable("TODO"); }
+void ToIRVisitor::visit(hir::JumpStatement &stmt) {
+  switch (stmt.getKind()) {
+  case hir::JumpStatement::Kind::Break:
+    builder_.CreateBr(jumpMap_.at(stmt.getTarget()).breakNode_);
+    break;
+  case hir::JumpStatement::Kind::Continue:
+    builder_.CreateBr(jumpMap_.at(stmt.getTarget()).continueNode_);
+    break;
+  }
+}
 void ToIRVisitor::visit(hir::ReturnStatement &stmt) {
   stmt.value()->accept(*this);
   if (!currentValue_)

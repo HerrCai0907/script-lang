@@ -12,6 +12,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include <memory>
+#include <stack>
 #include <string>
 #include <utility>
 
@@ -63,6 +64,7 @@ private:
     explicit CurrentReturnType(std::shared_ptr<hir::PendingResolvedType> t)
         : type(std::move(t)), hasReturn(false) {}
   } currentReturnType_;
+  std::stack<hir::LoopStatement *> jumpTargetStack_;
 };
 
 } // namespace scriptlang

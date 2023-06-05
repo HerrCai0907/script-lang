@@ -2,6 +2,7 @@
 #include "scriptlang/lib/parser/ast.hpp"
 #include "scriptlang/lib/sematic/hir.hpp"
 #include "scriptlang/lib/sematic/hir_coverter.hpp"
+#include "llvm/Support/ErrorHandling.h"
 #include <memory>
 
 namespace scriptlang {
@@ -54,11 +55,21 @@ void HIRConverter::visit(ast::AssignStmt &stmt) {
   // TODO: type check
   stmtResult_.reset(new hir::AssignStatement(variant, value, /*isDecl*/ false));
 }
-void HIRConverter::visit(ast::BreakStmt &) {
-  stmtResult_.reset(new hir::JumpStatement(hir::JumpStatement::Kind::Break));
+void HIRConverter::visit(ast::BreakStmt &stmt) {
+  if (jumpTargetStack_.empty()) {
+    diag_.report(stmt.start(), Diag::invalid_break);
+    return stmtResult_.reset();
+  }
+  stmtResult_.reset(
+      new hir::JumpStatement(hir::JumpStatement::Kind::Break, jumpTargetStack_.top()));
 }
-void HIRConverter::visit(ast::ContinueStmt &) {
-  stmtResult_.reset(new hir::JumpStatement(hir::JumpStatement::Kind::Continue));
+void HIRConverter::visit(ast::ContinueStmt &stmt) {
+  if (jumpTargetStack_.empty()) {
+    diag_.report(stmt.start(), Diag::invalid_continue);
+    return stmtResult_.reset();
+  }
+  stmtResult_.reset(
+      new hir::JumpStatement(hir::JumpStatement::Kind::Continue, jumpTargetStack_.top()));
 }
 void HIRConverter::visit(ast::DeclStmt &stmt) {
   stmt.expr()->accept(*this);
@@ -127,9 +138,7 @@ void HIRConverter::visit(ast::IfStmt &stmt) {
   }
   stmtResult_.reset(new hir::BranchStatement(condition, thenStatement, elseStatement));
 }
-void HIRConverter::visit(ast::ImportStmt &stmt) {
-  // TODO
-}
+void HIRConverter::visit(ast::ImportStmt &stmt) { llvm_unreachable("TODO"); }
 
 void HIRConverter::visit(ast::ReturnStmt &stmt) {
   std::shared_ptr<hir::Value> returnValue{nullptr};
@@ -152,6 +161,10 @@ void HIRConverter::visit(ast::ReturnStmt &stmt) {
   stmtResult_.reset(new hir::ReturnStatement(returnValue));
 }
 void HIRConverter::visit(ast::WhileStmt &stmt) {
+  // - Loop
+  //   - Branch (condition)
+  //     - Block
+  //     - Jump Break
   stmt.condition()->accept(*this);
   auto condition = exprResult_;
   if (condition == nullptr)
@@ -161,16 +174,20 @@ void HIRConverter::visit(ast::WhileStmt &stmt) {
                  condition->type()->toString());
     return stmtResult_.reset();
   }
+
+  auto loopHir = new hir::LoopStatement(nullptr, nullptr);
+  jumpTargetStack_.push(loopHir);
   stmt.block()->accept(*this);
+  jumpTargetStack_.pop();
   auto block = stmtResult_;
-  // - Loop
-  //   - Branch (condition)
-  //     - Block
-  //     - Jump Break
-  stmtResult_.reset(new hir::LoopStatement(std::shared_ptr<hir::BranchStatement>(
-      new hir::BranchStatement(condition, block,
-                               std::shared_ptr<hir::JumpStatement>(
-                                   new hir::JumpStatement(hir::JumpStatement::Kind::Break))))));
+
+  auto conditionJump = std::shared_ptr<hir::JumpStatement>(
+      new hir::JumpStatement(hir::JumpStatement::Kind::Break, loopHir));
+  auto conditionHir = std::shared_ptr<hir::BranchStatement>(
+      new hir::BranchStatement(condition, block, conditionJump));
+  loopHir->setBody(conditionHir);
+
+  stmtResult_.reset(loopHir);
 }
 
 std::shared_ptr<hir::Type>

@@ -309,25 +309,30 @@ private:
 };
 class LoopStatement : public Statement {
 public:
-  LoopStatement(std::shared_ptr<Statement> body);
+  LoopStatement(std::shared_ptr<Statement> body, std::shared_ptr<Statement> inc);
   void accept(Visitor &V) override { V.visit(*this); }
 
-  std::shared_ptr<Statement> body() const { return body_; }
+  void setBody(std::shared_ptr<Statement> const &body) { body_ = body; }
+  auto const &getBody() const { return body_; }
+  auto const &getInc() const { return inc_; }
 
 private:
   std::shared_ptr<Statement> body_; // maybe nullptr
+  std::shared_ptr<Statement> inc_;  // maybe nullptr
 };
 class JumpStatement : public Statement {
 public:
   // TODO maybe more clear JumpStatement is needed.
   enum class Kind : uint8_t { Break, Continue };
-  JumpStatement(Kind kind) : Statement(), kind_(kind) {}
+  JumpStatement(Kind kind, LoopStatement *target) : Statement(), kind_(kind), target_(target) {}
   void accept(Visitor &V) override { V.visit(*this); }
 
   Kind getKind() const { return kind_; }
+  LoopStatement *getTarget() { return target_; }
 
 private:
   Kind kind_;
+  LoopStatement *target_;
 };
 class ReturnStatement : public Statement {
 public:
